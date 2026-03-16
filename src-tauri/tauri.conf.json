@@ -34,10 +34,10 @@
   "plugins": {
     "updater": {
       "endpoints": [
-        "https://github.com/DEIN-USERNAME/integrationbuddy-app/releases/latest/download/latest.json"
+        "https://github.com/integrationbuddy/integrationbuddy-app/releases/latest/download/latest.json"
       ],
       "dialog": false,
-      "pubkey": "DEIN-PUBLIC-KEY-HIER-EINFUEGEN"
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IERCOUI2OEE1MkFFNDYwODQKUldTRVlPUXFwV2liMjVTVFdBekVBSVdzYU11MkhiKzVyQTVPVlF0VFdLanQzOFhZZm9lT3ZFWVUK"
     }
   },
   "bundle": {
