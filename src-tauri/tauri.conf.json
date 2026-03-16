@@ -1,0 +1,60 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "IntegrationBuddy",
+  "version": "1.0.0",
+  "identifier": "com.integrationbuddy.chat",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [
+      {
+        "label": "main",
+        "title": "IntegrationBuddy",
+        "width": 1100,
+        "height": 760,
+        "minWidth": 800,
+        "minHeight": 580,
+        "resizable": true,
+        "fullscreen": false,
+        "decorations": false,
+        "transparent": false,
+        "center": true,
+        "shadow": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: asset: https://asset.localhost; connect-src 'self' ipc: http://ipc.localhost https://api.github.com https://github.com https://objects.githubusercontent.com; script-src 'self'"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/DEIN-USERNAME/integrationbuddy-app/releases/latest/download/latest.json"
+      ],
+      "dialog": false,
+      "pubkey": "DEIN-PUBLIC-KEY-HIER-EINFUEGEN"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": ""
+    },
+    "resources": {}
+  }
+}

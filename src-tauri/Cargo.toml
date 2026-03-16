@@ -1,0 +1,27 @@
+[package]
+name        = "integrationbuddy-chat"
+version     = "1.0.0"
+description = "IntegrationBuddy – Datenschutzkonformer KI-Chat-Assistent"
+authors     = ["IntegrationBuddy"]
+edition     = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri                = { version = "2", features = [] }
+tauri-plugin-updater = { version = "2" }
+serde                = { version = "1", features = ["derive"] }
+serde_json           = "1"
+reqwest              = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+tokio                = { version = "1", features = ["rt-multi-thread"] }
+
+[features]
+# This feature is used for production builds or when a dev server is not specified.
+# `devUrl` follows a pattern defined in `tauri.conf.json` and `vite.config.ts`.
+custom-protocol = ["tauri/custom-protocol"]
+
+[profile.release]
+strip    = true
+opt-level = "s"
+lto       = true
