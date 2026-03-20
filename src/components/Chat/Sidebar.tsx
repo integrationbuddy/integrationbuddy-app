@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAppStore } from "../../store/appStore";
+import { useWebhook } from "../../hooks/useWebhook";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -28,6 +29,7 @@ interface SidebarProps {
 
 export default function Sidebar({ isOpen }: SidebarProps) {
   const { sessions, sessionId, newSession, switchSession, deleteSession } = useAppStore();
+  const { deleteSessionOnServer } = useWebhook();
   const [search,    setSearch]    = useState("");
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
@@ -180,8 +182,9 @@ export default function Sidebar({ isOpen }: SidebarProps) {
                                 background: "rgba(248,113,113,0.15)",
                                 color:      "#F87171",
                               }}
-                              onClick={(e) => {
+                              onClick={async (e) => {
                                 e.stopPropagation();
+                                await deleteSessionOnServer(sess.id);
                                 deleteSession(sess.id);
                               }}
                               whileHover={{ background: "rgba(248,113,113,0.3)" }}
