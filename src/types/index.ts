@@ -28,6 +28,14 @@ export interface Message {
   status: MessageStatus;
 }
 
+export interface ChatSession {
+  id: string;
+  title: string | null;       // first user message (auto-set), null until first message
+  createdAt: string;          // ISO string
+  lastMessageAt: string | null;
+  messages: Message[];
+}
+
 export interface WebhookPayload {
   message: string;
   sessionId: string;
