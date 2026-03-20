@@ -92,7 +92,8 @@ export function useWebhook() {
     try {
       if (isTauri()) {
         const { invoke } = await import("@tauri-apps/api/core");
-        await invoke("send_message_to_webhook", { url: deleteUrl, payload });
+        // Eigener Rust-Command der { session_id } als Payload akzeptiert
+        await invoke("delete_session_on_server", { url: deleteUrl, payload });
       } else {
         await fetch(deleteUrl, {
           method:  "POST",

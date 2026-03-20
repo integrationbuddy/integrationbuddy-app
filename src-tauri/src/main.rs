@@ -18,6 +18,11 @@ struct ChatPayload {
     timestamp:  String,
 }
 
+#[derive(Debug, Deserialize, Serialize)]
+struct DeletePayload {
+    session_id: String,
+}
+
 #[derive(Debug, Serialize)]
 struct ChatRequest {
     message:    String,
@@ -94,12 +99,47 @@ async fn send_message_to_webhook(
     }
 }
 
+/// Delete a session on the n8n server by sending { session_id } to the delete endpoint.
+#[command]
+async fn delete_session_on_server(
+    url:     String,
+    payload: DeletePayload,
+) -> Result<(), String> {
+    let parsed = url
+        .parse::<reqwest::Url>()
+        .map_err(|_| "Ungültige URL".to_string())?;
+
+    match parsed.scheme() {
+        "http" | "https" => {}
+        scheme => return Err(format!("Ungültiges URL-Schema: '{}'", scheme)),
+    }
+
+    let client = Client::builder()
+        .timeout(Duration::from_secs(30))
+        .user_agent("IntegrationBuddy/1.0")
+        .build()
+        .map_err(|e| format!("HTTP-Client-Fehler: {}", e))?;
+
+    client
+        .post(url)
+        .header("Content-Type", "application/json")
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| format!("Verbindungsfehler: {}", e))?;
+
+    Ok(())
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .invoke_handler(tauri::generate_handler![send_message_to_webhook])
+        .invoke_handler(tauri::generate_handler![
+            send_message_to_webhook,
+            delete_session_on_server,
+        ])
         .run(tauri::generate_context!())
         .expect("Fehler beim Starten der Anwendung");
 }
