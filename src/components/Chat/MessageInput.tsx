@@ -67,7 +67,7 @@ export default function MessageInput({ onSend, disabled = false }: MessageInputP
           )}
         </AnimatePresence>
 
-        <div className="flex items-end gap-2 px-4 py-3">
+        <div className="flex items-end gap-2 px-4 py-3" onClick={() => textareaRef.current?.focus()}>
           {/* Textarea */}
           <textarea
             ref={textareaRef}
