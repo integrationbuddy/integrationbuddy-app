@@ -8,6 +8,7 @@ interface MessageInputProps {
 
 export default function MessageInput({ onSend, disabled = false }: MessageInputProps) {
   const [text, setText]       = useState("");
+  const [focused, setFocused] = useState(false);
   const textareaRef           = useRef<HTMLTextAreaElement>(null);
 
   // Auto-resize textarea
@@ -41,10 +42,15 @@ export default function MessageInput({ onSend, disabled = false }: MessageInputP
       {/* Container */}
       <motion.div
         className="relative rounded-2xl overflow-hidden"
+        animate={{
+          boxShadow: focused
+            ? "0 0 0 2px rgba(109,91,255,0.4), 0 8px 32px rgba(0,0,0,0.4)"
+            : "0 2px 16px rgba(0,0,0,0.3)",
+        }}
+        transition={{ duration: 0.2 }}
         style={{
-          background:  "rgba(17, 21, 35, 0.95)",
-          border:      "1px solid rgba(255,255,255,0.07)",
-          boxShadow:   "0 2px 16px rgba(0,0,0,0.3)",
+          background: "rgba(17, 21, 35, 0.95)",
+          border: `1px solid ${focused ? "rgba(109,91,255,0.4)" : "rgba(255,255,255,0.07)"}`,
         }}
       >
 
@@ -59,12 +65,15 @@ export default function MessageInput({ onSend, disabled = false }: MessageInputP
               maxHeight:   "160px",
               fontFamily:  "DM Sans, sans-serif",
               caretColor:  "var(--accent)",
+              outline:     "none",
+              boxShadow:   "none",
             }}
             placeholder={disabled ? "Warte auf Antwort…" : "Nachricht eingeben… (Enter zum Senden, Shift+Enter für neue Zeile)"}
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={handleKeyDown}
-
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
             disabled={disabled}
             rows={1}
           />
