@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'   # Trigger bei Tags wie v1.0.0, v1.2.3 etc.
+      - 'v*'
 
 jobs:
   release:
@@ -15,7 +15,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -24,10 +24,10 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Rust Cache
+      - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
-          workspaces: src-tauri
+          workspaces: src-tauri -> target
 
       - name: Install dependencies
         run: npm ci
@@ -35,15 +35,12 @@ jobs:
       - name: Build & Release
         uses: tauri-apps/tauri-action@v0
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          GITHUB_TOKEN:                       ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY:          ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: IntegrationBuddy ${{ github.ref_name }}
-          releaseBody: |
-            ## Was ist neu?
-            Siehe [CHANGELOG](https://github.com/integrationbuddy/integrationbuddy-app/blob/main/CHANGELOG.md) für Details.
+          tagName:      ${{ github.ref_name }}
+          releaseName:  'IntegrationBuddy ${{ github.ref_name }}'
+          releaseBody:  'Installer unten herunterladen und ausführen.'
           releaseDraft: false
-          prerelease: false
-          includeUpdaterJson: true
+          prerelease:   false
