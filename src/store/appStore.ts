@@ -15,7 +15,7 @@ interface AppState extends AppSettings {
   resetSetup: () => void;
 
   // Actions – messages
-  addMessage: (msg: Omit<Message, "id" | "timestamp">) => string;
+  addMessage: (msg: Omit<Message, "id" | "timestamp">, targetSessionId?: string) => string;
   updateMessage: (id: string, updates: Partial<Message>) => void;
   setTyping: (typing: boolean) => void;
   clearMessages: () => void;
@@ -85,22 +85,29 @@ export const useAppStore = create<AppState>()(
 
       // ── Messages ───────────────────────────────────────────────────────────
 
-      addMessage: (msgData) => {
+      addMessage: (msgData, targetSessionId?) => {
         const id = uuidv4();
         const message: Message = { ...msgData, id, timestamp: new Date() };
 
         set((s) => {
-          const newMessages = [...s.messages, message];
+          const effectiveId = targetSessionId ?? s.sessionId;
+          const isCurrentSession = effectiveId === s.sessionId;
+
           const sessions = s.sessions.map((sess) => {
-            if (sess.id !== s.sessionId) return sess;
+            if (sess.id !== effectiveId) return sess;
+            const sessionMessages = isCurrentSession ? [...s.messages, message] : [...sess.messages, message];
             return {
               ...sess,
-              messages:      newMessages,
+              messages:      sessionMessages,
               title:         sess.title ?? (msgData.role === "user" ? msgData.content.slice(0, 80) : null),
               lastMessageAt: new Date().toISOString(),
             };
           });
-          return { messages: newMessages, sessions };
+
+          if (isCurrentSession) {
+            return { messages: [...s.messages, message], sessions };
+          }
+          return { sessions };
         });
 
         return id;

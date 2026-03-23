@@ -15,7 +15,7 @@ interface ChatPageProps {
 }
 
 export default function ChatPage({ onResetSettings }: ChatPageProps) {
-  const { messages, isTyping, addMessage, updateMessage, setTyping, clearMessages } = useAppStore();
+  const { messages, isTyping, addMessage, updateMessage, setTyping, clearMessages, sessionId } = useAppStore();
   const { sendMessage } = useWebhook();
   const { ai } = useAppStore();
   const bottomRef  = useRef<HTMLDivElement>(null);
@@ -34,18 +34,19 @@ export default function ChatPage({ onResetSettings }: ChatPageProps) {
 
   const handleSend = async (text: string) => {
     setError("");
-    const userMsgId = addMessage({ role: "user", content: text, status: "sending" });
+    const originSessionId = sessionId;
+    const userMsgId = addMessage({ role: "user", content: text, status: "sending" }, originSessionId);
     updateMessage(userMsgId, { status: "sent" });
     setTyping(true);
 
     try {
       const reply = await sendMessage(text);
       setTyping(false);
-      addMessage({ role: "assistant", content: reply, status: "sent" });
+      addMessage({ role: "assistant", content: reply, status: "sent" }, originSessionId);
     } catch (err) {
       setTyping(false);
       const errMsg = err instanceof Error ? err.message : String(err);
-      addMessage({ role: "assistant", content: `Fehler: ${errMsg}`, status: "error" });
+      addMessage({ role: "assistant", content: `Fehler: ${errMsg}`, status: "error" }, originSessionId);
       setError(errMsg);
     }
   };
