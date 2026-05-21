@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "IntegrationBuddy",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "identifier": "com.integrationbuddy.chat",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -28,7 +28,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: asset: https://asset.localhost; connect-src 'self' ipc: http://ipc.localhost https://api.github.com https://github.com https://objects.githubusercontent.com; script-src 'self'"
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: asset: https://asset.localhost https://portal.integrationbuddy.de; connect-src 'self' ipc: http://ipc.localhost https://api.github.com https://github.com https://objects.githubusercontent.com https://portal.integrationbuddy.de; script-src 'self'"
     }
   },
   "plugins": {
@@ -37,7 +37,7 @@
         "https://github.com/integrationbuddy/integrationbuddy-app/releases/latest/download/latest.json"
       ],
       "dialog": false,
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEJGRDQ0REU3QUFEMTZEQ0QKUldUTmJkR3E1MDNVdjdzUHFMODFQMG5xV1Qzakk3YloyRnlMckZtM2tzQjZ5VzVVL0xyckRJZngK"
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEREQ0IyMTQyOTc4Q0NFODYKUldTR3pveVhRaUhMM1ZDRWFQZU1yc3MvYlZ6c3ZiTTVzTTFDN3lvWXdaY0VGblBWSGhKckNidzYK"
     }
   },
   "bundle": {
