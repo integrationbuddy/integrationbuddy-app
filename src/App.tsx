@@ -13,7 +13,7 @@ const pageVariants = {
 
 export default function App() {
   const { isSetupComplete, resetSetup } = useAppStore();
-  const { updateInfo, installing, progress, installUpdate, dismiss } = useUpdater();
+  const { updateInfo, installing, progress, error, installUpdate, dismiss } = useUpdater();
 
   const handleResetSettings = () => {
     if (window.confirm("Alle Einstellungen zurücksetzen und die Einrichtung neu starten?")) {
@@ -55,6 +55,7 @@ export default function App() {
         info={updateInfo}
         installing={installing}
         progress={progress}
+        error={error}
         onInstall={installUpdate}
         onDismiss={dismiss}
       />

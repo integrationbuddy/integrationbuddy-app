@@ -13,9 +13,9 @@ export function useUpdater() {
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [installing, setInstalling] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Nur in Tauri-Umgebung prüfen, nicht im Browser
     if (!isTauri()) return;
 
     const checkForUpdates = async () => {
@@ -29,12 +29,12 @@ export function useUpdater() {
             update,
           });
         }
-      } catch {
-        // Kein Update verfügbar oder Netzwerkfehler → still ignorieren
+      } catch (e) {
+        // Kein Update oder Netzwerkfehler — kein Dialog anzeigen
+        console.error("[Updater] Prüfung fehlgeschlagen:", e);
       }
     };
 
-    // Kurze Verzögerung damit die App zuerst vollständig lädt
     const timer = setTimeout(checkForUpdates, 3000);
     return () => clearTimeout(timer);
   }, []);
@@ -43,6 +43,7 @@ export function useUpdater() {
     if (!updateInfo?.update) return;
     setInstalling(true);
     setProgress(0);
+    setError(null);
 
     try {
       let downloaded = 0;
@@ -57,15 +58,19 @@ export function useUpdater() {
             setProgress(Math.round((downloaded / total) * 100));
           }
         }
-        // "Finished" → App startet neu automatisch
+        // "Finished" → Installer startet, App wird automatisch neu gestartet
       });
-    } catch {
+    } catch (e) {
+      console.error("[Updater] Installation fehlgeschlagen:", e);
+      setError("Update fehlgeschlagen. Bitte versuche es erneut.");
       setInstalling(false);
       setProgress(0);
     }
   };
 
-  const dismiss = () => setUpdateInfo(null);
+  const dismiss = () => {
+    if (!installing) setUpdateInfo(null);
+  };
 
-  return { updateInfo, installing, progress, installUpdate, dismiss };
+  return { updateInfo, installing, progress, error, installUpdate, dismiss };
 }

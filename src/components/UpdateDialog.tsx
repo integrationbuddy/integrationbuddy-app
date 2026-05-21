@@ -5,11 +5,12 @@ interface Props {
   info: UpdateInfo | null;
   installing: boolean;
   progress: number;
+  error: string | null;
   onInstall: () => void;
   onDismiss: () => void;
 }
 
-export function UpdateDialog({ info, installing, progress, onInstall, onDismiss }: Props) {
+export function UpdateDialog({ info, installing, progress, error, onInstall, onDismiss }: Props) {
   return (
     <AnimatePresence>
       {info?.available && (
@@ -79,6 +80,15 @@ export function UpdateDialog({ info, installing, progress, onInstall, onDismiss 
                   </div>
                   <p className="text-white/30 text-xs mt-1.5 text-right">
                     {progress > 0 ? `${progress}% heruntergeladen…` : "Wird vorbereitet…"}
+                  </p>
+                </div>
+              )}
+
+              {/* Error message */}
+              {error && (
+                <div className="px-6 pb-2">
+                  <p className="text-red-400/80 text-xs bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+                    {error}
                   </p>
                 </div>
               )}

@@ -13,6 +13,8 @@
     "core:window:allow-toggle-maximize",
     "core:window:allow-start-dragging",
     "core:event:allow-listen",
-    "core:event:allow-unlisten"
+    "core:event:allow-unlisten",
+    "updater:allow-check",
+    "updater:allow-download-and-install"
   ]
 }
