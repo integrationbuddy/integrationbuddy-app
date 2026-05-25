@@ -20,3 +20,8 @@ Thumbs.db
 # Logs
 *.log
 npm-debug.log*
+
+tauri-signing.key
+
+tauri-signing.key
+tauri-signing.key.pub
