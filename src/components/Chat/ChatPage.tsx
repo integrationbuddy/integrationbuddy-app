@@ -7,6 +7,7 @@ import MessageInput from "./MessageInput";
 import TypingIndicator from "./TypingIndicator";
 import Sidebar from "./Sidebar";
 import SkillSelector from "./SkillSelector";
+import SolvedButton from "./SolvedButton";
 import { useAppStore } from "../../store/appStore";
 import { useWebhook } from "../../hooks/useWebhook";
 import type { ChatSession, MessageRole } from "../../types";
@@ -57,7 +58,11 @@ export default function ChatPage({ onResetSettings }: ChatPageProps) {
   const bottomRef  = useRef<HTMLDivElement>(null);
   const scrollRef  = useRef<HTMLDivElement>(null);
   const [error,       setError]       = useState("");
+  const [solved,      setSolved]      = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // ── Reset "solved" state when session changes ────────────────────────────
+  useEffect(() => { setSolved(false); }, [sessionId]);
 
   // ── Load sessions from server on mount ────────────────────────────────────
   useEffect(() => {
@@ -351,13 +356,24 @@ export default function ChatPage({ onResetSettings }: ChatPageProps) {
           }}
         />
 
-        {/* ── Skill-Selector (erscheint über dem Input wenn Skills vorhanden) */}
-        <SkillSelector
-          skills={availableSkills}
-          activeSession={activeSkillSession}
-          onStartSkill={startSkillSession}
-          onEndSkill={endSkillSession}
-        />
+        {/* ── Skill-Selector + Problem-gelöst-Button ──────────────── */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <SkillSelector
+              skills={availableSkills}
+              activeSession={activeSkillSession}
+              onStartSkill={startSkillSession}
+              onEndSkill={endSkillSession}
+            />
+          </div>
+          <div style={{ padding: "0 16px 8px", flexShrink: 0 }}>
+            <SolvedButton
+              messages={messages}
+              solved={solved}
+              onSolved={() => setSolved(true)}
+            />
+          </div>
+        </div>
 
         {/* Input */}
         <MessageInput onSend={handleSend} disabled={isTyping} />
