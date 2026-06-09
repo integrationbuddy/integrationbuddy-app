@@ -1,5 +1,9 @@
 import { useAppStore } from "../store/appStore";
-import type { WebhookPayload, WebhookResponseShape } from "../types";
+import type {
+  WebhookPayload,
+  WebhookResponseShape,
+  SendMessageResult,
+} from "../types";
 
 // ── Tauri detection ───────────────────────────────────────────────────────────
 
@@ -9,8 +13,10 @@ const isTauri = (): boolean =>
 
 // ── Response parsing ──────────────────────────────────────────────────────────
 
-function parseResponse(raw: string): string {
-  if (!raw || !raw.trim()) return "Keine Antwort erhalten.";
+function parseResponse(raw: string): SendMessageResult {
+  if (!raw || !raw.trim()) {
+    return { text: "Keine Antwort erhalten." };
+  }
 
   try {
     const parsed = JSON.parse(raw) as
@@ -21,8 +27,9 @@ function parseResponse(raw: string): string {
     const obj = Array.isArray(parsed) ? parsed[0] : parsed;
 
     if (obj && typeof obj === "object") {
-      const candidate = (obj as WebhookResponseShape);
-      return (
+      const candidate = obj as WebhookResponseShape;
+
+      const text =
         candidate.response ??
         candidate.output ??
         candidate.message ??
@@ -30,34 +37,61 @@ function parseResponse(raw: string): string {
         candidate.answer ??
         candidate.result ??
         candidate.content ??
-        raw
-      );
+        raw.trim();
+
+      return {
+        text,
+        skillOutput:    candidate.skillOutput,
+        skillAction:    candidate.skillAction,
+        collectedData:  candidate.collectedData,
+      };
     }
   } catch {
     // Not JSON — return raw text
   }
 
-  return raw.trim();
+  return { text: raw.trim() };
 }
 
 // ── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useWebhook() {
-  const { webhookUrl, user, sessionId } = useAppStore();
+  const {
+    webhookUrl,
+    user,
+    sessionId,
+    userId,
+    userGroups,
+    availableSkills,
+    activeSkillSession,
+  } = useAppStore();
 
-  // Delete-Endpunkt aus der Chat-URL ableiten (z.B. /ib-chat → /delete-session)
+  // Delete-Endpunkt aus der Chat-URL ableiten
   const deleteUrl = webhookUrl.replace(/\/ib-chat$/, "/delete-session");
 
-  const sendMessage = async (content: string): Promise<string> => {
+  const sendMessage = async (content: string): Promise<SendMessageResult> => {
     if (!webhookUrl) {
       throw new Error("Kein Webhook-URL konfiguriert.");
     }
 
+    // Skill-Kontext einbauen wenn eine Skill-Session aktiv ist
+    const skillPayload = activeSkillSession
+      ? {
+          slug:          activeSkillSession.skillSlug,
+          config:        availableSkills.find((s) => s.slug === activeSkillSession.skillSlug)?.config ?? null,
+          sessionStatus: activeSkillSession.status,
+          collectedData: activeSkillSession.collectedData,
+        }
+      : undefined;
+
     const payload: WebhookPayload = {
-      message:   content,
+      message:    content,
       sessionId,
-      userName:  `${user.firstName} ${user.lastName}`.trim(),
-      timestamp: new Date().toISOString(),
+      userName:   `${user.firstName} ${user.lastName}`.trim(),
+      timestamp:  new Date().toISOString(),
+      userId,
+      userGroups,
+      ...(skillPayload ? { skill: skillPayload } : {}),
     };
 
     let rawResponse: string;
@@ -92,7 +126,6 @@ export function useWebhook() {
     try {
       if (isTauri()) {
         const { invoke } = await import("@tauri-apps/api/core");
-        // Eigener Rust-Command der { session_id } als Payload akzeptiert
         await invoke("delete_session_on_server", { url: deleteUrl, payload });
       } else {
         await fetch(deleteUrl, {

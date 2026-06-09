@@ -1,12 +1,31 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { v4 as uuidv4 } from "uuid";
 import ChatHeader from "./ChatHeader";
 import MessageBubble from "./MessageBubble";
 import MessageInput from "./MessageInput";
 import TypingIndicator from "./TypingIndicator";
 import Sidebar from "./Sidebar";
+import SkillSelector from "./SkillSelector";
 import { useAppStore } from "../../store/appStore";
 import { useWebhook } from "../../hooks/useWebhook";
+import type { ChatSession, MessageRole } from "../../types";
+
+// ── Server session shapes ─────────────────────────────────────────────────────
+
+interface ServerMessage {
+  role: string;
+  content: string;
+  created_at: string;
+}
+
+interface ServerSession {
+  session_id: string;
+  title: string | null;
+  created_at: string;
+  last_message_at: string | null;
+  messages: ServerMessage[] | string;
+}
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -15,13 +34,89 @@ interface ChatPageProps {
 }
 
 export default function ChatPage({ onResetSettings }: ChatPageProps) {
-  const { messages, isTyping, addMessage, updateMessage, setTyping, clearMessages, sessionId } = useAppStore();
+  const {
+    messages,
+    isTyping,
+    addMessage,
+    updateMessage,
+    setTyping,
+    clearMessages,
+    sessionId,
+    webhookUrl,
+    userId,
+    replaceWithServerSessions,
+    availableSkills,
+    activeSkillSession,
+    startSkillSession,
+    updateSkillSession,
+    endSkillSession,
+  } = useAppStore();
+
   const { sendMessage } = useWebhook();
   const { ai } = useAppStore();
   const bottomRef  = useRef<HTMLDivElement>(null);
   const scrollRef  = useRef<HTMLDivElement>(null);
   const [error,       setError]       = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // ── Load sessions from server on mount ────────────────────────────────────
+  useEffect(() => {
+    if (!webhookUrl || !userId) return;
+
+    const loadUrl = webhookUrl.replace(/\/ib-chat$/, "/ib-load-history");
+    if (loadUrl === webhookUrl) return; // URL pattern didn't match
+
+    const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+
+    const load = async () => {
+      try {
+        let raw: string;
+        if (isTauri) {
+          const { invoke } = await import("@tauri-apps/api/core");
+          raw = await invoke<string>("post_json", { url: loadUrl, body: { userId } });
+        } else {
+          const res = await fetch(loadUrl, {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body:    JSON.stringify({ userId }),
+          });
+          raw = await res.text();
+        }
+
+        const parsed: unknown = JSON.parse(raw);
+        const data: ServerSession[] = Array.isArray(parsed)
+          ? (parsed as ServerSession[])
+          : ((parsed as { sessions?: ServerSession[] }).sessions ?? []);
+
+        const sessions: ChatSession[] = data.map((s) => {
+          const rawMsgs: ServerMessage[] =
+            typeof s.messages === "string"
+              ? (JSON.parse(s.messages) as ServerMessage[])
+              : (s.messages as ServerMessage[]) ?? [];
+
+          return {
+            id:            s.session_id,
+            title:         s.title ?? null,
+            createdAt:     s.created_at,
+            lastMessageAt: s.last_message_at ?? null,
+            messages: rawMsgs.map((m) => ({
+              id:        uuidv4(),
+              role:      m.role as MessageRole,
+              content:   m.content,
+              timestamp: new Date(m.created_at),
+              status:    "sent" as const,
+            })),
+          };
+        });
+
+        replaceWithServerSessions(sessions);
+      } catch {
+        // Silently fall back to local sessions
+      }
+    };
+
+    load();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -40,9 +135,45 @@ export default function ChatPage({ onResetSettings }: ChatPageProps) {
     setTyping(true);
 
     try {
-      const reply = await sendMessage(text);
+      const result = await sendMessage(text);
       setTyping(false);
-      addMessage({ role: "assistant", content: reply, status: "sent" }, originSessionId);
+
+      // ── Skill-State-Machine ──────────────────────────────────────────────
+      if (result.skillAction === "collecting") {
+        updateSkillSession({
+          status:        "collecting",
+          collectedData: result.collectedData ?? activeSkillSession?.collectedData ?? {},
+        });
+      } else if (result.skillAction === "confirming") {
+        updateSkillSession({
+          status:        "confirming",
+          collectedData: result.collectedData ?? activeSkillSession?.collectedData ?? {},
+        });
+      } else if (result.skillAction === "complete") {
+        if (result.skillOutput) {
+          updateSkillSession({
+            status:         "complete",
+            outputFileUrl:  result.skillOutput.fileUrl,
+            outputFileName: result.skillOutput.fileName,
+          });
+        }
+        // Skill-Session nach kurzem Delay automatisch beenden
+        setTimeout(() => endSkillSession(), 800);
+      } else if (result.skillAction === "cancelled") {
+        endSkillSession();
+      }
+      // Bei "undefined" skillAction (normaler RAG-Chat) → nichts tun
+
+      // Nachricht zur Chat-History hinzufügen
+      addMessage(
+        {
+          role:        "assistant",
+          content:     result.text,
+          status:      "sent",
+          skillOutput: result.skillOutput,
+        },
+        originSessionId
+      );
     } catch (err) {
       setTyping(false);
       const errMsg = err instanceof Error ? err.message : String(err);
@@ -218,6 +349,14 @@ export default function ChatPage({ onResetSettings }: ChatPageProps) {
             background: "linear-gradient(var(--bg-0), transparent)",
             zIndex:     5,
           }}
+        />
+
+        {/* ── Skill-Selector (erscheint über dem Input wenn Skills vorhanden) */}
+        <SkillSelector
+          skills={availableSkills}
+          activeSession={activeSkillSession}
+          onStartSkill={startSkillSession}
+          onEndSkill={endSkillSession}
         />
 
         {/* Input */}

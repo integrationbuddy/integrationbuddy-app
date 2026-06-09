@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import Avatar from "../common/Avatar";
+import SkillOutputBubble from "./SkillOutputBubble";
 import { useAppStore } from "../../store/appStore";
 import type { Message } from "../../types";
 
@@ -123,6 +124,11 @@ export default function MessageBubble({ message, isLast }: MessageBubbleProps) {
             )}
           </motion.button>
         </div>
+
+        {/* Skill-Output (Datei-Download-Karte) */}
+        {!isUser && message.skillOutput && (
+          <SkillOutputBubble output={message.skillOutput} />
+        )}
 
         {/* Timestamp */}
         <div

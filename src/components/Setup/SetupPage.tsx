@@ -2,17 +2,33 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import AvatarUpload from "../common/AvatarUpload";
 import { useAppStore } from "../../store/appStore";
-import type { UserProfile, AIProfile } from "../../types";
+import type { UserProfile, AIProfile, ActiveSkill } from "../../types";
 import TitleBar from "../common/TitleBar";
+
+const PORTAL_AUTH_URL = "https://portal.integrationbuddy.de/api/auth.php";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type Step = 0 | 1 | 2 | 3; // 0=welcome, 1=user, 2=ai, 3=connection
+type Step = 0 | 1 | 2 | 3 | 4; // 0=welcome, 1=login, 2=profile, 3=ai, 4=connection
+
+interface LoginResult {
+  userId: number;
+  authToken: string;
+  userGroups: string[];
+  skills: ActiveSkill[];
+  firstName: string;
+  lastName: string;
+  webhookUrl: string;
+  avatarUrl: string | null;
+}
 
 interface FormState {
+  email: string;
+  password: string;
   user: UserProfile;
   ai:   AIProfile;
   webhookUrl: string;
+  loginResult: LoginResult | null;
 }
 
 // ── Slide animation variants ──────────────────────────────────────────────────
@@ -55,11 +71,16 @@ export default function SetupPage() {
   const [step, setStep] = useState<Step>(0);
   const [dir,  setDir]  = useState(1);
   const [urlError, setUrlError] = useState("");
+  const [loginError, setLoginError] = useState("");
+  const [loginLoading, setLoginLoading] = useState(false);
 
   const [form, setForm] = useState<FormState>({
-    user:       { firstName: "", lastName: "", avatar: null },
-    ai:         { name: "IntegrationBuddy", avatar: null },
-    webhookUrl: "",
+    email:       "",
+    password:    "",
+    user:        { firstName: "", lastName: "", avatar: null },
+    ai:          { name: "IntegrationBuddy", avatar: null },
+    webhookUrl:  "",
+    loginResult: null,
   });
 
   // ── Navigation ──────────────────────────────────────────────────────────
@@ -74,19 +95,91 @@ export default function SetupPage() {
 
   // ── Validation ──────────────────────────────────────────────────────────
 
-  const isStep1Valid = form.user.firstName.trim() && form.user.lastName.trim();
-  const isStep2Valid = form.ai.name.trim();
-  const isStep3Valid = isValidUrl(form.webhookUrl);
+  const isStep1Valid = form.email.trim() && form.password.length >= 1;
+  const isStep2Valid = form.user.firstName.trim() && form.user.lastName.trim();
+  const isStep3Valid = form.ai.name.trim();
+  const isStep4Valid = isValidUrl(form.webhookUrl);
+
+  const handleLogin = async () => {
+    setLoginError("");
+    setLoginLoading(true);
+    try {
+      let rawResponse: string;
+      if (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window) {
+        // Tauri: nativer Rust-Request (kein CORS/CSP)
+        const { invoke } = await import("@tauri-apps/api/core");
+        rawResponse = await invoke<string>("authenticate_with_portal", {
+          url:     PORTAL_AUTH_URL,
+          payload: { email: form.email.trim(), password: form.password },
+        });
+      } else {
+        const res = await fetch(PORTAL_AUTH_URL, {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ email: form.email.trim(), password: form.password }),
+        });
+        rawResponse = await res.text();
+      }
+
+      const data = JSON.parse(rawResponse);
+      if (!data.success) {
+        if (data.must_change_password) {
+          setLoginError("Bitte zuerst das Passwort im Portal ändern: " + (data.portal_url ?? ""));
+        } else {
+          setLoginError(data.error ?? "Anmeldung fehlgeschlagen.");
+        }
+        return;
+      }
+
+      // Avatar per Rust-Command als base64 laden (umgeht CSP img-src)
+      let avatarBase64: string | null = null;
+      if (data.avatarUrl && typeof window !== "undefined" && "__TAURI_INTERNALS__" in window) {
+        try {
+          const { invoke } = await import("@tauri-apps/api/core");
+          avatarBase64 = await invoke<string>("fetch_image_as_base64", { url: data.avatarUrl });
+        } catch {
+          // Avatar nicht kritisch — ignorieren
+        }
+      }
+
+      const result: LoginResult = {
+        userId:     data.userId,
+        authToken:  data.token,
+        userGroups: data.groups ?? [],
+        skills:     data.skills ?? [],
+        firstName:  data.firstName ?? "",
+        lastName:   data.lastName ?? "",
+        webhookUrl: data.webhookUrl ?? "",
+        avatarUrl:  avatarBase64,
+      };
+      setForm((f) => ({
+        ...f,
+        loginResult: result,
+        user: { firstName: result.firstName, lastName: result.lastName, avatar: result.avatarUrl },
+        webhookUrl: result.webhookUrl || f.webhookUrl,
+      }));
+      go(2); // go to profile step
+    } catch (e) {
+      setLoginError("Fehler: " + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setLoginLoading(false);
+    }
+  };
 
   const handleFinish = () => {
-    if (!isStep3Valid) {
+    if (!isStep4Valid) {
       setUrlError("Bitte geben Sie eine gültige HTTP/HTTPS-URL ein.");
       return;
     }
+    const lr = form.loginResult;
     completeSetup({
       user:       { ...form.user, firstName: form.user.firstName.trim(), lastName: form.user.lastName.trim() },
       ai:         { ...form.ai, name: form.ai.name.trim() },
       webhookUrl: form.webhookUrl.trim(),
+      userId:     lr?.userId ?? null,
+      authToken:  lr?.authToken ?? null,
+      userGroups: lr?.userGroups ?? [],
+      skills:     lr?.skills ?? [],
     });
   };
 
@@ -146,7 +239,7 @@ export default function SetupPage() {
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
             >
-              {([1, 2, 3] as const).map((s) => (
+              {([1, 2, 3, 4] as const).map((s) => (
                 <div
                   key={s}
                   className={`step-dot ${step === s ? "active" : step > s ? "done" : ""}`}
@@ -265,10 +358,104 @@ export default function SetupPage() {
                   </motion.div>
                 )}
 
-                {/* ── Step 1: User Profile ────────────────────────────── */}
+                {/* ── Step 1: Portal Login ─────────────────────────────── */}
                 {step === 1 && (
                   <motion.div
-                    key="user"
+                    key="login"
+                    custom={dir}
+                    variants={slideVariants}
+                    initial="enter"
+                    animate="center"
+                    exit="exit"
+                    transition={transition}
+                    className="flex flex-col gap-6"
+                  >
+                    <div>
+                      <h2 className="font-display text-2xl font-bold mb-1" style={{ color: "var(--text-1)" }}>
+                        Anmelden
+                      </h2>
+                      <p className="text-sm" style={{ color: "var(--text-2)" }}>
+                        Melden Sie sich mit Ihren Portal-Zugangsdaten an.
+                      </p>
+                    </div>
+
+                    <div className="flex flex-col gap-3">
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-medium" style={{ color: "var(--text-2)" }}>
+                          E-Mail *
+                        </label>
+                        <input
+                          className="input-field rounded-xl px-3 py-2.5 text-sm w-full"
+                          type="email"
+                          placeholder="max@firma.de"
+                          value={form.email}
+                          onChange={(e) => {
+                            setForm((f) => ({ ...f, email: e.target.value }));
+                            setLoginError("");
+                          }}
+                          autoFocus
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-medium" style={{ color: "var(--text-2)" }}>
+                          Passwort *
+                        </label>
+                        <input
+                          className="input-field rounded-xl px-3 py-2.5 text-sm w-full"
+                          type="password"
+                          placeholder="••••••••"
+                          value={form.password}
+                          onChange={(e) => {
+                            setForm((f) => ({ ...f, password: e.target.value }));
+                            setLoginError("");
+                          }}
+                          onKeyDown={(e) => { if (e.key === "Enter" && isStep1Valid) handleLogin(); }}
+                        />
+                      </div>
+                    </div>
+
+                    <AnimatePresence>
+                      {loginError && (
+                        <motion.p
+                          className="text-xs px-3 py-2 rounded-lg"
+                          style={{ color: "#F87171", background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)" }}
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                        >
+                          {loginError}
+                        </motion.p>
+                      )}
+                    </AnimatePresence>
+
+                    <div className="flex gap-3 mt-2">
+                      <button className="btn btn-ghost rounded-xl px-4 py-2.5 text-sm flex-1" onClick={back}>
+                        Zurück
+                      </button>
+                      <motion.button
+                        className="btn btn-primary rounded-xl px-4 py-2.5 text-sm flex-[2]"
+                        onClick={handleLogin}
+                        disabled={!isStep1Valid || loginLoading}
+                        style={{ opacity: (isStep1Valid && !loginLoading) ? 1 : 0.4, cursor: (isStep1Valid && !loginLoading) ? "pointer" : "not-allowed" }}
+                        whileHover={isStep1Valid ? { scale: 1.02 } : {}}
+                        whileTap={isStep1Valid ? { scale: 0.98 } : {}}
+                      >
+                        {loginLoading ? "Wird geprüft …" : "Anmelden"}
+                        {!loginLoading && (
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                            <line x1="5" y1="12" x2="19" y2="12" />
+                            <polyline points="12 5 19 12 12 19" />
+                          </svg>
+                        )}
+                      </motion.button>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* ── Step 2: User Profile ─────────────────────────────── */}
+                {step === 2 && (
+                  <motion.div
+                    key="profile"
                     custom={dir}
                     variants={slideVariants}
                     initial="enter"
@@ -296,8 +483,8 @@ export default function SetupPage() {
                       />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="flex flex-col gap-1.5">
+                    <div className="flex gap-3">
+                      <div className="flex flex-col gap-1.5 flex-1">
                         <label className="text-xs font-medium" style={{ color: "var(--text-2)" }}>
                           Vorname *
                         </label>
@@ -311,7 +498,7 @@ export default function SetupPage() {
                           autoFocus
                         />
                       </div>
-                      <div className="flex flex-col gap-1.5">
+                      <div className="flex flex-col gap-1.5 flex-1">
                         <label className="text-xs font-medium" style={{ color: "var(--text-2)" }}>
                           Nachname *
                         </label>
@@ -333,10 +520,10 @@ export default function SetupPage() {
                       <motion.button
                         className="btn btn-primary rounded-xl px-4 py-2.5 text-sm flex-[2]"
                         onClick={next}
-                        disabled={!isStep1Valid}
-                        style={{ opacity: isStep1Valid ? 1 : 0.4, cursor: isStep1Valid ? "pointer" : "not-allowed" }}
-                        whileHover={isStep1Valid ? { scale: 1.02 } : {}}
-                        whileTap={isStep1Valid ? { scale: 0.98 } : {}}
+                        disabled={!isStep2Valid}
+                        style={{ opacity: isStep2Valid ? 1 : 0.4, cursor: isStep2Valid ? "pointer" : "not-allowed" }}
+                        whileHover={isStep2Valid ? { scale: 1.02 } : {}}
+                        whileTap={isStep2Valid ? { scale: 0.98 } : {}}
                       >
                         Weiter
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
@@ -348,8 +535,8 @@ export default function SetupPage() {
                   </motion.div>
                 )}
 
-                {/* ── Step 2: AI Configuration ────────────────────────── */}
-                {step === 2 && (
+                {/* ── Step 3: AI Configuration ────────────────────────── */}
+                {step === 3 && (
                   <motion.div
                     key="ai"
                     custom={dir}
@@ -426,10 +613,10 @@ export default function SetupPage() {
                       <motion.button
                         className="btn btn-primary rounded-xl px-4 py-2.5 text-sm flex-[2]"
                         onClick={next}
-                        disabled={!isStep2Valid}
-                        style={{ opacity: isStep2Valid ? 1 : 0.4, cursor: isStep2Valid ? "pointer" : "not-allowed" }}
-                        whileHover={isStep2Valid ? { scale: 1.02 } : {}}
-                        whileTap={isStep2Valid ? { scale: 0.98 } : {}}
+                        disabled={!isStep3Valid}
+                        style={{ opacity: isStep3Valid ? 1 : 0.4, cursor: isStep3Valid ? "pointer" : "not-allowed" }}
+                        whileHover={isStep3Valid ? { scale: 1.02 } : {}}
+                        whileTap={isStep3Valid ? { scale: 0.98 } : {}}
                       >
                         Weiter
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
@@ -441,8 +628,8 @@ export default function SetupPage() {
                   </motion.div>
                 )}
 
-                {/* ── Step 3: Connection ──────────────────────────────── */}
-                {step === 3 && (
+                {/* ── Step 4: Connection ──────────────────────────────── */}
+                {step === 4 && (
                   <motion.div
                     key="connection"
                     custom={dir}
@@ -543,10 +730,10 @@ export default function SetupPage() {
                       <motion.button
                         className="btn btn-primary rounded-xl px-4 py-2.5 text-sm flex-[2]"
                         onClick={handleFinish}
-                        disabled={!isStep3Valid}
-                        style={{ opacity: isStep3Valid ? 1 : 0.4, cursor: isStep3Valid ? "pointer" : "not-allowed" }}
-                        whileHover={isStep3Valid ? { scale: 1.02 } : {}}
-                        whileTap={isStep3Valid ? { scale: 0.98 } : {}}
+                        disabled={!isStep4Valid}
+                        style={{ opacity: isStep4Valid ? 1 : 0.4, cursor: isStep4Valid ? "pointer" : "not-allowed" }}
+                        whileHover={isStep4Valid ? { scale: 1.02 } : {}}
+                        whileTap={isStep4Valid ? { scale: 0.98 } : {}}
                       >
                         Einrichtung abschließen
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
