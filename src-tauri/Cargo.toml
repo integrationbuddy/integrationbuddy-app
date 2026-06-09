@@ -1,6 +1,6 @@
 [package]
 name        = "integrationbuddy-chat"
-version     = "1.0.4"
+version     = "1.1.0"
 description = "IntegrationBuddy – Datenschutzkonformer KI-Chat-Assistent"
 authors     = ["IntegrationBuddy"]
 edition     = "2021"
