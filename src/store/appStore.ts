@@ -52,6 +52,13 @@ interface AppState extends AppSettings {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
+/** Maximale Anzahl gespeicherter Chat-Verläufe (neueste behalten). */
+const MAX_SESSIONS = 50;
+
+/** Kürzt das sessions-Array auf MAX_SESSIONS (neueste zuerst). */
+const trimSessions = (sessions: ChatSession[]): ChatSession[] =>
+  sessions.length > MAX_SESSIONS ? sessions.slice(0, MAX_SESSIONS) : sessions;
+
 const makeSession = (id: string): ChatSession => ({
   id,
   title: null,
@@ -109,7 +116,7 @@ export const useAppStore = create<AppState>()(
           availableSkills: skills,
           isSetupComplete: true,
           sessionId: newId,
-          sessions: [makeSession(newId), ...s.sessions],
+          sessions: trimSessions([makeSession(newId), ...s.sessions]),
           messages: [],
           activeSkillSession: null,
         }));
@@ -190,7 +197,7 @@ export const useAppStore = create<AppState>()(
         const newId = uuidv4();
         set((s) => ({
           sessionId:          newId,
-          sessions:           [makeSession(newId), ...s.sessions],
+          sessions:           trimSessions([makeSession(newId), ...s.sessions]),
           messages:           [],
           activeSkillSession: null,
         }));

@@ -80,6 +80,7 @@ async fn send_message_to_webhook(
 }
 
 /// Authenticate a user against the IntegrationBuddy portal and return the raw JSON response.
+/// Requires HTTPS — Credentials dürfen nie unverschlüsselt übertragen werden.
 #[command]
 async fn authenticate_with_portal(
     url:     String,
@@ -90,8 +91,12 @@ async fn authenticate_with_portal(
         .map_err(|_| "Ungültige URL".to_string())?;
 
     match parsed.scheme() {
-        "http" | "https" => {}
-        scheme => return Err(format!("Nur HTTP/HTTPS erlaubt. Erhalten: '{}'", scheme)),
+        "https" => {}
+        "http"  => return Err(
+            "Sicherheitsfehler: Login-Daten dürfen nur über HTTPS übertragen werden. \
+             Bitte die Portal-URL auf https:// prüfen.".to_string()
+        ),
+        scheme => return Err(format!("Nur HTTPS erlaubt. Erhalten: '{}'", scheme)),
     }
 
     let client = Client::builder()
