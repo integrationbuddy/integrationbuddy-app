@@ -61,6 +61,7 @@ export function useWebhook() {
     user,
     sessionId,
     userId,
+    authToken,
     userGroups,
     availableSkills,
     activeSkillSession,
@@ -100,14 +101,17 @@ export function useWebhook() {
       // ── Tauri path: HTTP request goes through Rust backend ──────────────
       const { invoke } = await import("@tauri-apps/api/core");
       rawResponse = await invoke<string>("send_message_to_webhook", {
-        url: webhookUrl,
+        url:       webhookUrl,
         payload,
+        authToken: authToken ?? null,
       });
     } else {
       // ── Browser dev-mode fallback ────────────────────────────────────────
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
       const res = await fetch(webhookUrl, {
         method:  "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body:    JSON.stringify(payload),
       });
       if (!res.ok) {

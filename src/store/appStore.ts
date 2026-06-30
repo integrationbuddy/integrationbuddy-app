@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { v4 as uuidv4 } from "uuid";
+import { invoke } from "@tauri-apps/api/core";
 import type {
   AppSettings,
   Message,
@@ -30,6 +31,7 @@ interface AppState extends AppSettings {
     skills?: ActiveSkill[];
   }) => void;
   resetSetup: () => void;
+  loadAuthToken: () => Promise<void>;
 
   // Actions – messages
   addMessage: (msg: Omit<Message, "id" | "timestamp">, targetSessionId?: string) => string;
@@ -105,6 +107,12 @@ export const useAppStore = create<AppState>()(
         userGroups = [],
         skills = [],
       }) => {
+        // Token im Windows Credential Manager speichern, nicht in localStorage
+        if (authToken) {
+          invoke("keyring_set_token", { token: authToken }).catch(console.error);
+        } else {
+          invoke("keyring_delete_token").catch(console.error);
+        }
         const newId = uuidv4();
         set((s) => ({
           user,
@@ -123,6 +131,7 @@ export const useAppStore = create<AppState>()(
       },
 
       resetSetup: () => {
+        invoke("keyring_delete_token").catch(console.error);
         const newId = uuidv4();
         set({
           ...defaultState,
@@ -131,6 +140,15 @@ export const useAppStore = create<AppState>()(
           messages:           [],
           activeSkillSession: null,
         });
+      },
+
+      loadAuthToken: async () => {
+        try {
+          const token = await invoke<string | null>("keyring_get_token");
+          set({ authToken: token ?? null });
+        } catch {
+          // Keyring nicht verfügbar — authToken bleibt null
+        }
       },
 
       // ── Messages ───────────────────────────────────────────────────────────
@@ -299,7 +317,7 @@ export const useAppStore = create<AppState>()(
         sessionId:       s.sessionId,
         sessions:        s.sessions,
         userId:          s.userId,
-        authToken:       s.authToken,
+        // authToken wird NICHT in localStorage gespeichert — nur im Windows Credential Manager
         userGroups:      s.userGroups,
         availableSkills: s.availableSkills,
       }),

@@ -31,8 +31,9 @@ struct DeletePayload {
 ///   - 120-second timeout prevents indefinite hangs
 #[command]
 async fn send_message_to_webhook(
-    url:     String,
-    payload: serde_json::Value,
+    url:        String,
+    payload:    serde_json::Value,
+    auth_token: Option<String>,
 ) -> Result<String, String> {
     // ── URL validation ────────────────────────────────────────────────────
     let parsed = url
@@ -57,10 +58,16 @@ async fn send_message_to_webhook(
         .map_err(|e| format!("HTTP-Client-Fehler: {}", e))?;
 
     // ── Execute request ───────────────────────────────────────────────────
-    let response = client
+    let mut req = client
         .post(url)
         .header("Content-Type", "application/json")
-        .json(&payload)
+        .json(&payload);
+
+    if let Some(token) = auth_token {
+        req = req.header("Authorization", format!("Bearer {}", token));
+    }
+
+    let response = req
         .send()
         .await
         .map_err(|e| format!("Verbindungsfehler: {}", e))?;
@@ -328,6 +335,43 @@ async fn delete_session_on_server(
     Ok(())
 }
 
+// ── Keyring ───────────────────────────────────────────────────────────────────
+
+const KEYRING_SERVICE: &str = "integrationbuddy";
+const KEYRING_ACCOUNT: &str = "auth-token";
+
+#[command]
+fn keyring_set_token(token: String) -> Result<(), String> {
+    keyring::Entry::new(KEYRING_SERVICE, KEYRING_ACCOUNT)
+        .map_err(|e| format!("Keyring-Fehler: {}", e))?
+        .set_password(&token)
+        .map_err(|e| format!("Token speichern fehlgeschlagen: {}", e))
+}
+
+#[command]
+fn keyring_get_token() -> Result<Option<String>, String> {
+    match keyring::Entry::new(KEYRING_SERVICE, KEYRING_ACCOUNT)
+        .map_err(|e| format!("Keyring-Fehler: {}", e))?
+        .get_password()
+    {
+        Ok(token) => Ok(Some(token)),
+        Err(keyring::Error::NoEntry) => Ok(None),
+        Err(e) => Err(format!("Token lesen fehlgeschlagen: {}", e)),
+    }
+}
+
+#[command]
+fn keyring_delete_token() -> Result<(), String> {
+    match keyring::Entry::new(KEYRING_SERVICE, KEYRING_ACCOUNT)
+        .map_err(|e| format!("Keyring-Fehler: {}", e))?
+        .delete_credential()
+    {
+        Ok(()) => Ok(()),
+        Err(keyring::Error::NoEntry) => Ok(()),
+        Err(e) => Err(format!("Token löschen fehlgeschlagen: {}", e)),
+    }
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 fn main() {
@@ -341,6 +385,9 @@ fn main() {
             post_json,
             download_file,
             save_base64_file,
+            keyring_set_token,
+            keyring_get_token,
+            keyring_delete_token,
         ])
         .run(tauri::generate_context!())
         .expect("Fehler beim Starten der Anwendung");

@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useAppStore } from "./store/appStore";
 import SetupPage from "./components/Setup/SetupPage";
@@ -12,7 +13,11 @@ const pageVariants = {
 };
 
 export default function App() {
-  const { isSetupComplete, resetSetup } = useAppStore();
+  const { isSetupComplete, resetSetup, loadAuthToken } = useAppStore();
+
+  useEffect(() => {
+    loadAuthToken();
+  }, []);
   const { updateInfo, installing, progress, error, installUpdate, dismiss } = useUpdater();
 
   const handleResetSettings = () => {
