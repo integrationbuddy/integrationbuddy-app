@@ -176,6 +176,9 @@ export default function ChatPage({ onResetSettings }: ChatPageProps) {
           content:     result.text,
           status:      "sent",
           skillOutput: result.skillOutput,
+          buttons:     result.buttons,
+          selectOptions: result.selectOptions,
+          dateChannelOptions: result.dateChannelOptions,
         },
         originSessionId
       );
@@ -307,6 +310,7 @@ export default function ChatPage({ onResetSettings }: ChatPageProps) {
                 key={msg.id}
                 message={msg}
                 isLast={idx === messages.length - 1}
+                onButtonClick={isTyping ? undefined : handleSend}
               />
             ))}
           </AnimatePresence>

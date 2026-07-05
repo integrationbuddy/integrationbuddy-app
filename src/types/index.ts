@@ -60,6 +60,16 @@ export interface AppSettings {
 export type MessageRole = "user" | "assistant";
 export type MessageStatus = "sending" | "sent" | "error";
 
+export interface QuickReplyButton {
+  label: string;
+  value: string;
+}
+
+export interface SelectOption {
+  label: string;
+  value: string;
+}
+
 export interface Message {
   id: string;
   role: MessageRole;
@@ -67,6 +77,9 @@ export interface Message {
   timestamp: Date;
   status: MessageStatus;
   skillOutput?: SkillFileOutput; // gesetzt wenn eine Datei mit der Antwort geliefert wird
+  buttons?: QuickReplyButton[]; // Quick-Reply-Buttons (z.B. Ja/Nein-Bestätigungen)
+  selectOptions?: SelectOption[]; // Single-Select-Liste mit Bestätigen-Button (z.B. Messinstrumente)
+  dateChannelOptions?: SelectOption[]; // Kanal-Auswahl + Datumspicker (z.B. Anfragedatum)
 }
 
 export interface ChatSession {
@@ -109,6 +122,9 @@ export interface WebhookResponseShape {
   skillOutput?: SkillFileOutput;
   skillAction?: "collecting" | "confirming" | "complete" | "cancelled";
   collectedData?: Record<string, unknown>;
+  buttons?: QuickReplyButton[];
+  selectOptions?: SelectOption[];
+  dateChannelOptions?: SelectOption[];
 }
 
 /** Ergebnis von sendMessage() */
@@ -117,4 +133,7 @@ export interface SendMessageResult {
   skillOutput?: SkillFileOutput;
   skillAction?: "collecting" | "confirming" | "complete" | "cancelled";
   collectedData?: Record<string, unknown>;
+  buttons?: QuickReplyButton[];
+  selectOptions?: SelectOption[];
+  dateChannelOptions?: SelectOption[];
 }

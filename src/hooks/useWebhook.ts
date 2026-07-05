@@ -44,6 +44,9 @@ function parseResponse(raw: string): SendMessageResult {
         skillOutput:    candidate.skillOutput,
         skillAction:    candidate.skillAction,
         collectedData:  candidate.collectedData,
+        buttons:        candidate.buttons,
+        selectOptions:  candidate.selectOptions,
+        dateChannelOptions: candidate.dateChannelOptions,
       };
     }
   } catch {
