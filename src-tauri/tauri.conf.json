@@ -17,8 +17,8 @@
         "title": "IntegrationBuddy",
         "width": 1100,
         "height": 760,
-        "minWidth": 800,
-        "minHeight": 580,
+        "minWidth": 900,
+        "minHeight": 600,
         "resizable": true,
         "fullscreen": false,
         "decorations": false,
@@ -28,7 +28,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: asset: https://asset.localhost https://portal.integrationbuddy.de; connect-src 'self' ipc: http://ipc.localhost https://api.github.com https://github.com https://objects.githubusercontent.com https://portal.integrationbuddy.de; script-src 'self'"
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: asset: https://asset.localhost https://portal.integrationbuddy.de https://api.integrationbuddy.cloud; connect-src 'self' ipc: http://ipc.localhost https://api.github.com https://github.com https://objects.githubusercontent.com https://portal.integrationbuddy.de https://api.integrationbuddy.cloud; script-src 'self'"
     }
   },
   "plugins": {

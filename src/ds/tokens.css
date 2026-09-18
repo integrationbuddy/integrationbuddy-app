@@ -1,0 +1,300 @@
+/* ==========================================================================
+   IntegrationBuddy Design-System · Tokens
+   Quelle: Marketing-Website integrationbuddy.de (Stand 09.09.2026).
+   Helles Thema ist Standard. Dunkles Thema über [data-theme="dark"] oder
+   Systemeinstellung (prefers-color-scheme), solange kein data-theme="light" gesetzt ist.
+   Komponenten referenzieren ausschließlich die semantischen Tokens (--color-*, --font-*,
+   --text-*, --sp-*, --radius-*, --shadow-*, --ease-*). Rohwerte stehen nur hier.
+   ========================================================================== */
+
+:root {
+  /* ---- Farben: Flächen und Text -------------------------------------- */
+  --color-canvas:        #FFFFFF;   /* Seitengrund */
+  --color-surface:       #F8FAFC;   /* leicht abgesetzte Fläche: Karten-Aside, Bänder, Tabellenkopf */
+  --color-surface-2:     #E8EEF5;   /* stärker abgesetzte Fläche: Schrittband */
+  --color-raised:        #FFFFFF;   /* Karten, Eingabefelder, Chat-Antworten */
+  --color-ink:           #0F172A;   /* Fließtext, Überschriften */
+  --color-ink-soft:      #64748B;   /* Nebentext, Beschriftungen */
+  --color-ink-faint:     #94A3B8;   /* Platzhalter, deaktiviert */
+  --color-border:        #E2E8F0;   /* Haarlinie */
+  --color-border-strong: #CBD5E1;   /* betonte Linie, Hover-Rahmen */
+
+  /* ---- Farben: Akzent ------------------------------------------------ */
+  --color-accent:        #2563EB;   /* einziger Akzent: Primärbutton, Links, Eyebrow, Fokus */
+  --color-accent-hover:  #1D4ED8;
+  --color-accent-light:  #60A5FA;   /* Zahlen, Akzent auf dunklem Grund */
+  --color-accent-soft:   #EFF6FF;   /* leichte Akzentfläche */
+  --color-accent-border: #BFDBFE;
+  --color-on-accent:     #FFFFFF;
+  --color-logo:          #0765C5;   /* Logofarbe, nur für das Logo selbst */
+
+  /* ---- Farben: dunkle Platte (Schlusskapitel, dunkles Thema) --------- */
+  --color-plate:         #0F172A;
+  --color-plate-2:       #16213A;
+  --color-plate-3:       #1E293B;
+  --color-plate-4:       #1B2740;
+  --color-on-plate:      #FFFFFF;
+  --color-on-plate-soft: #CBD5E1;
+  --color-plate-border:  rgba(255, 255, 255, 0.14);
+
+  /* ---- Farben: Status (Ergänzung für Portal, Freigabe, App) ---------- */
+  --color-success:        #15803D;
+  --color-success-soft:   #F0FDF4;
+  --color-success-border: #BBF7D0;
+  --color-warning:        #B45309;
+  --color-warning-soft:   #FFFBEB;
+  --color-warning-border: #FDE68A;
+  --color-danger:         #B91C1C;
+  --color-danger-strong:  #DC2626;
+  --color-danger-soft:    #FEF2F2;
+  --color-danger-border:  #FECACA;
+  --color-info:           var(--color-accent);
+  --color-info-soft:      var(--color-accent-soft);
+  --color-info-border:    var(--color-accent-border);
+
+  /* ---- Abgeleitete Farben -------------------------------------------- */
+  --color-focus-ring:    color-mix(in oklab, var(--color-accent) 18%, transparent);
+  --color-accent-tint:   color-mix(in oklab, var(--color-accent) 40%, transparent);
+  --color-selection:     color-mix(in oklab, var(--color-accent) 22%, transparent);
+  --color-scrim:         rgba(15, 23, 42, 0.55);
+
+  /* ---- Schrift ------------------------------------------------------- */
+  --font-display: "Space Grotesk", system-ui, sans-serif;   /* Überschriften, Zahlen, Marke */
+  --font-text:    "Inter", system-ui, sans-serif;            /* alles andere */
+  --font-mono:    ui-monospace, "Cascadia Code", Consolas, monospace; /* nur Dateinamen, IDs, Code */
+
+  --text-xs:    12px;   /* Fußnoten, Zeitstempel */
+  --text-label: 13px;   /* Eyebrow, Tabellenkopf, Quellenchips */
+  --text-sm:    14px;   /* Nebentext, Formularhinweise, Fußzeile */
+  --text-base:  16px;   /* Produkt-Fließtext, Buttons, Eingabefelder */
+  --text-md:    18px;   /* Marketing-Fließtext, Lede */
+  --text-h3:    24px;
+  --text-h2:    clamp(2rem, 1.4rem + 1.6vw, 2.5rem);          /* 32 bis 40 */
+  --text-h1:    clamp(2.75rem, 1.6rem + 3.6vw, 4.5rem);       /* 44 bis 72, nur Startseite */
+  --text-page:  clamp(2.5rem, 1.6rem + 2.8vw, 4rem);          /* 40 bis 64, Unterseiten */
+  --text-stat:  clamp(2.5rem, 4vw, 3.5rem);                   /* große Kennzahlen */
+  --text-num:   32px;                                          /* Schrittnummern */
+
+  --leading-tight: 1.02;  /* H1 */
+  --leading-snug:  1.1;   /* H2 */
+  --leading-head:  1.25;  /* H3 */
+  --leading-ui:    1.45;  /* Chat, Buttons, Tabellen */
+  --leading-body:  1.6;
+  --leading-prose: 1.7;   /* Rechtstexte */
+
+  --tracking-h1:      -0.03em;
+  --tracking-h2:      -0.02em;
+  --tracking-h3:      -0.015em;
+  --tracking-display: -0.01em;
+  --tracking-caps:     0.12em;   /* Eyebrow */
+  --tracking-caps-sm:  0.1em;    /* Tabellenkopf, Tag */
+
+  --weight-regular:  400;
+  --weight-medium:   500;
+  --weight-semibold: 600;
+  --weight-bold:     700;
+
+  /* ---- Abstände (8er-Raster mit 4 und 12 als Feinstufen) ------------- */
+  --sp-1:  4px;
+  --sp-2:  8px;
+  --sp-3:  12px;
+  --sp-4:  16px;
+  --sp-5:  24px;
+  --sp-6:  32px;
+  --sp-7:  40px;
+  --sp-8:  48px;
+  --sp-9:  64px;
+  --sp-10: 120px;
+  --section-y: clamp(var(--sp-9), 9vw, var(--sp-10));   /* Kapitelabstand */
+  --section-y-tight: clamp(var(--sp-7), 7vw, 96px);
+
+  /* ---- Layout -------------------------------------------------------- */
+  --maxw:          1312px;
+  --gutter:        clamp(1.25rem, 4.5vw, 4rem);
+  --measure:       62ch;    /* maximale Zeilenlänge Fließtext */
+  --header-h:      84px;    /* Website-Kopf */
+  --topbar-h:      64px;    /* Produkt-Kopfzeile */
+  --sidebar-w:     264px;
+  --control-h:     48px;    /* Standardhöhe Button, Eingabefeld */
+  --control-h-sm:  36px;
+  --control-h-lg:  56px;
+  --touch-min:     44px;
+
+  /* ---- Form ---------------------------------------------------------- */
+  --radius-xs:   4px;    /* Tag, kleine Marken */
+  --radius-sm:   8px;    /* Buttons, Eingabefelder, Logo-Kachel */
+  --radius-md:   12px;   /* Chat-Blasen */
+  --radius-lg:   14px;   /* Karten, Panels, Dialoge */
+  --radius-pill: 999px;
+  --line:        1px;
+
+  /* ---- Schatten (Richtung Schiefer getönt, leise) -------------------- */
+  --shadow-color: 215 30% 25%;
+  --shadow-1: 0 1px 2px hsl(var(--shadow-color) / 0.08), 0 2px 6px -1px hsl(var(--shadow-color) / 0.06);
+  --shadow-2: 0 2px 4px hsl(var(--shadow-color) / 0.06), 0 10px 24px -6px hsl(var(--shadow-color) / 0.12);
+  --shadow-3: 0 4px 8px hsl(var(--shadow-color) / 0.06), 0 24px 48px -12px hsl(var(--shadow-color) / 0.16);
+  --edge:     inset 0 1px 0 rgba(255, 255, 255, 0.9);   /* Kantenlicht oben auf Karten */
+
+  /* ---- Bewegung (nur Zustandswechsel, keine Scroll-Animation) -------- */
+  --dur-fast:  150ms;
+  --dur-base:  180ms;
+  --dur-slow:  260ms;
+  --ease-out:    cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease:        ease;
+
+  color-scheme: light;
+}
+
+/* ==========================================================================
+   Dunkles Thema. Abgeleitet vom dunklen Kapitel der Website ("Fragen Sie einfach")
+   und dem Schlussblock: Platte #0F172A, Flächen #16213A / #1E293B, Akzent hell #60A5FA.
+   ========================================================================== */
+[data-theme="dark"] {
+  --color-canvas:        #0F172A;
+  --color-surface:       #16213A;
+  --color-surface-2:     #1B2740;
+  --color-raised:        #1E293B;
+  --color-ink:           #FFFFFF;
+  --color-ink-soft:      #CBD5E1;
+  --color-ink-faint:     #94A3B8;
+  --color-border:        rgba(255, 255, 255, 0.14);
+  --color-border-strong: rgba(255, 255, 255, 0.28);
+
+  --color-accent:        #2563EB;
+  --color-accent-hover:  #3B82F6;
+  --color-accent-light:  #60A5FA;
+  --color-accent-soft:   rgba(37, 99, 235, 0.18);
+  --color-accent-border: rgba(96, 165, 250, 0.45);
+
+  --color-success:        #4ADE80;
+  --color-success-soft:   rgba(34, 197, 94, 0.14);
+  --color-success-border: rgba(74, 222, 128, 0.35);
+  --color-warning:        #FBBF24;
+  --color-warning-soft:   rgba(245, 158, 11, 0.14);
+  --color-warning-border: rgba(251, 191, 36, 0.35);
+  --color-danger:         #F87171;
+  --color-danger-strong:  #EF4444;
+  --color-danger-soft:    rgba(239, 68, 68, 0.14);
+  --color-danger-border:  rgba(248, 113, 113, 0.35);
+
+  --color-scrim:      rgba(2, 6, 23, 0.7);
+  --shadow-color:     222 47% 4%;
+  --edge:             inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-theme="dark"]) {
+    --color-canvas:        #0F172A;
+    --color-surface:       #16213A;
+    --color-surface-2:     #1B2740;
+    --color-raised:        #1E293B;
+    --color-ink:           #FFFFFF;
+    --color-ink-soft:      #CBD5E1;
+    --color-ink-faint:     #94A3B8;
+    --color-border:        rgba(255, 255, 255, 0.14);
+    --color-border-strong: rgba(255, 255, 255, 0.28);
+    --color-accent-hover:  #3B82F6;
+    --color-accent-soft:   rgba(37, 99, 235, 0.18);
+    --color-accent-border: rgba(96, 165, 250, 0.45);
+    --color-success:        #4ADE80;
+    --color-success-soft:   rgba(34, 197, 94, 0.14);
+    --color-success-border: rgba(74, 222, 128, 0.35);
+    --color-warning:        #FBBF24;
+    --color-warning-soft:   rgba(245, 158, 11, 0.14);
+    --color-warning-border: rgba(251, 191, 36, 0.35);
+    --color-danger:         #F87171;
+    --color-danger-strong:  #EF4444;
+    --color-danger-soft:    rgba(239, 68, 68, 0.14);
+    --color-danger-border:  rgba(248, 113, 113, 0.35);
+    --color-scrim:      rgba(2, 6, 23, 0.7);
+    --shadow-color:     222 47% 4%;
+    --edge:             inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    color-scheme: dark;
+  }
+}
+
+/* Die Website erzwingt das helle Thema; Produkte dürfen dem System folgen.
+   Ein Block kann lokal dunkel sein: <section data-theme="dark"> übernimmt alle Tokens. */
+
+/* ==========================================================================
+   Kompatibilität: Namen des bisherigen Portal-Stylesheets (ib.css, IBM-Plex-System).
+   Vorhandene Inline-Styles und Skripte im Portal funktionieren damit weiter.
+   Neue Arbeit nutzt die Namen oben.
+   ========================================================================== */
+:root, [data-theme="dark"] {
+  --brand:              var(--color-accent);
+  --brand-hover:        var(--color-accent-hover);
+  --brand-active:       var(--color-accent-hover);
+  --brand-subtle:       var(--color-accent-soft);
+  --brand-subtle-hover: var(--color-accent-soft);
+  --brand-border:       var(--color-accent-border);
+  --text-on-brand:      var(--color-on-accent);
+
+  --surface-base:    var(--color-canvas);
+  --surface-card:    var(--color-raised);
+  --surface-raised:  var(--color-raised);
+  --surface-sunken:  var(--color-surface);
+  --surface-hover:   var(--color-surface);
+  --surface-active:  var(--color-surface-2);
+  --surface-inverse: var(--color-plate);
+
+  --border-subtle:  var(--color-border);
+  --border-default: var(--color-border);
+  --border-strong:  var(--color-border-strong);
+
+  --text-primary:   var(--color-ink);
+  --text-secondary: var(--color-ink-soft);
+  --text-tertiary:  var(--color-ink-soft);
+  --text-disabled:  var(--color-ink-faint);
+  --text-inverse:   var(--color-on-plate);
+  --text-link:      var(--color-accent);
+
+  --success:        var(--color-success);
+  --success-subtle: var(--color-success-soft);
+  --success-border: var(--color-success-border);
+  --warning:        var(--color-warning);
+  --warning-subtle: var(--color-warning-soft);
+  --warning-border: var(--color-warning-border);
+  --danger:         var(--color-danger);
+  --danger-subtle:  var(--color-danger-soft);
+  --danger-border:  var(--color-danger-border);
+  --info:           var(--color-info);
+  --info-subtle:    var(--color-info-soft);
+  --info-border:    var(--color-info-border);
+
+  --focus-ring:        var(--color-accent);
+  --focus-ring-shadow: 0 0 0 4px var(--color-focus-ring);
+
+  --font-sans: var(--font-text);
+  --text-caption: var(--text-xs);  --leading-caption: 16px;
+  --text-small:   var(--text-sm);  --leading-small:   20px;
+  --text-body:    var(--text-base);--leading-body:    24px;
+  --text-h6: 18px; --leading-h6: 26px;
+  --text-h5: 20px; --leading-h5: 28px;
+  --text-h4: 24px; --leading-h4: 32px;
+  --tracking-tight: var(--tracking-h2);
+  --tracking-snug:  var(--tracking-display);
+
+  --space-1: 4px;  --space-2: 8px;  --space-3: 12px; --space-4: 16px; --space-5: 20px;
+  --space-6: 24px; --space-8: 32px; --space-10: 40px; --space-12: 48px; --space-16: 64px; --space-20: 80px;
+  --space-sm: 12px; --space-md: 16px; --space-lg: 24px;
+
+  --sidebar-width:   var(--sidebar-w);
+  --topbar-height:   var(--topbar-h);
+  --control-height-sm: var(--control-h-sm);
+  --control-height-md: var(--control-h);
+  --control-height-lg: var(--control-h-lg);
+
+  --radius-full: var(--radius-pill);
+  --radius-xl:   var(--radius-lg);
+  --shadow-xs: var(--shadow-1); --shadow-sm: var(--shadow-1);
+  --shadow-md: var(--shadow-2); --shadow-lg: var(--shadow-3); --shadow-xl: var(--shadow-3);
+  --duration-fast: var(--dur-fast); --duration-base: var(--dur-base); --duration-slow: var(--dur-slow);
+  --ease-standard: var(--ease-out);
+
+  --color-text-primary: var(--color-ink);
+  --color-text-muted:   var(--color-ink-soft);
+  --color-surface-legacy: var(--color-raised);
+}

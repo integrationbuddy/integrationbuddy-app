@@ -1,4 +1,5 @@
-import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useRef } from "react";
+import Icon from "./common/Icon";
 import { UpdateInfo } from "../hooks/useUpdater";
 
 interface Props {
@@ -10,123 +11,65 @@ interface Props {
   onDismiss: () => void;
 }
 
+/** Update-Hinweis als Dialog nach Design-System: Version, Hinweise, Fortschritt. */
 export function UpdateDialog({ info, installing, progress, error, onInstall, onDismiss }: Props) {
+  const ref = useRef<HTMLDialogElement>(null);
+  const open = Boolean(info?.available);
+
+  useEffect(() => {
+    const d = ref.current;
+    if (!d) return;
+    if (open && !d.open) d.showModal();
+    if (!open && d.open) d.close();
+  }, [open]);
+
   return (
-    <AnimatePresence>
-      {info?.available && (
-        <>
-          {/* Backdrop */}
-          <motion.div
-            key="backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
-            onClick={!installing ? onDismiss : undefined}
-          />
-
-          {/* Dialog */}
-          <motion.div
-            key="dialog"
-            initial={{ opacity: 0, scale: 0.92, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.92, y: 20 }}
-            transition={{ type: "spring", stiffness: 300, damping: 25 }}
-            className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none"
-          >
-            <div className="pointer-events-auto w-[420px] rounded-2xl border border-white/10 bg-[#0F1420] shadow-2xl overflow-hidden">
-              {/* Header */}
-              <div className="px-6 pt-6 pb-4 border-b border-white/5">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-[#2DD4BF]/10 flex items-center justify-center flex-shrink-0">
-                    <svg className="w-5 h-5 text-[#2DD4BF]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h2 className="text-white font-semibold text-base leading-tight">
-                      Update verfügbar
-                    </h2>
-                    <p className="text-white/40 text-xs mt-0.5">
-                      Version {info.version}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Body */}
-              <div className="px-6 py-4">
-                {info.body ? (
-                  <div className="text-white/60 text-sm leading-relaxed max-h-40 overflow-y-auto pr-1 custom-scrollbar whitespace-pre-wrap">
-                    {info.body}
-                  </div>
-                ) : (
-                  <p className="text-white/40 text-sm italic">
-                    Keine Versionshinweise verfügbar.
-                  </p>
-                )}
-              </div>
-
-              {/* Progress bar (during install) */}
-              {installing && (
-                <div className="px-6 pb-2">
-                  <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
-                    <motion.div
-                      className="h-full bg-[#2DD4BF] rounded-full"
-                      initial={{ width: 0 }}
-                      animate={{ width: `${progress}%` }}
-                      transition={{ ease: "linear" }}
-                    />
-                  </div>
-                  <p className="text-white/30 text-xs mt-1.5 text-right">
-                    {progress > 0 ? `${progress}% heruntergeladen…` : "Wird vorbereitet…"}
-                  </p>
-                </div>
-              )}
-
-              {/* Error message */}
-              {error && (
-                <div className="px-6 pb-2">
-                  <p className="text-red-400/80 text-xs bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-                    {error}
-                  </p>
-                </div>
-              )}
-
-              {/* Actions */}
-              <div className="px-6 pb-6 flex gap-3">
-                <button
-                  onClick={onDismiss}
-                  disabled={installing}
-                  className="flex-1 py-2.5 rounded-xl border border-white/10 text-white/50 text-sm font-medium
-                    hover:bg-white/5 hover:text-white/70 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-                >
-                  Später
-                </button>
-                <button
-                  onClick={onInstall}
-                  disabled={installing}
-                  className="flex-1 py-2.5 rounded-xl bg-[#2DD4BF] text-[#06080F] text-sm font-semibold
-                    hover:bg-[#2DD4BF]/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed
-                    flex items-center justify-center gap-2"
-                >
-                  {installing ? (
-                    <>
-                      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 11-8 8z" />
-                      </svg>
-                      Installiere…
-                    </>
-                  ) : (
-                    "Jetzt installieren"
-                  )}
-                </button>
-              </div>
+    <dialog
+      ref={ref}
+      className="dialog"
+      aria-labelledby="update-title"
+      onCancel={(e) => { if (installing) e.preventDefault(); else onDismiss(); }}
+      onClose={() => { if (!installing) onDismiss(); }}
+    >
+      {info && (
+        <div className="dialog__box">
+          <div className="cluster" style={{ marginBottom: "var(--sp-3)" }}>
+            <span className="avatar avatar--md avatar--soft"><Icon name="download" size={18} /></span>
+            <div>
+              <h2 className="dialog__title" id="update-title" style={{ margin: 0 }}>Update verfügbar</h2>
+              <p className="muted text-sm" style={{ margin: 0 }}>Version {info.version}</p>
             </div>
-          </motion.div>
-        </>
+          </div>
+
+          {info.body ? (
+            <div className="dialog__body-scroll">{info.body}</div>
+          ) : (
+            <p className="dialog__sub" style={{ margin: 0 }}>Keine Versionshinweise vorhanden.</p>
+          )}
+
+          {installing && (
+            <div className="stack" style={{ gap: 6, marginTop: "var(--sp-4)" }}>
+              <div className="progress-bar"><div className="progress-bar__fill" style={{ width: `${progress}%` }} /></div>
+              <p className="muted text-xs" style={{ textAlign: "right" }}>{progress > 0 ? `${progress} % heruntergeladen` : "Wird vorbereitet …"}</p>
+            </div>
+          )}
+
+          {error && (
+            <div className="notice notice--err notice--compact" role="alert" style={{ marginTop: "var(--sp-4)" }}>
+              <Icon name="alert" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <div className="dialog__footer">
+            <button type="button" className="btn btn--ghost" onClick={onDismiss} disabled={installing}>Später</button>
+            <button type="button" className={`btn btn--primary btn--submit${installing ? " is-loading" : ""}`} onClick={onInstall} disabled={installing}>
+              Jetzt installieren
+              <span className="btn__spinner" aria-hidden="true" />
+            </button>
+          </div>
+        </div>
       )}
-    </AnimatePresence>
+    </dialog>
   );
 }

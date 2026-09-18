@@ -1,69 +1,44 @@
-import { useEffect } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { useEffect, useState } from "react";
 import { useAppStore } from "./store/appStore";
 import SetupPage from "./components/Setup/SetupPage";
 import ChatPage from "./components/Chat/ChatPage";
+import ConfirmDialog from "./components/common/ConfirmDialog";
 import { UpdateDialog } from "./components/UpdateDialog";
 import { useUpdater } from "./hooks/useUpdater";
 
-const pageVariants = {
-  initial: { opacity: 0, scale: 0.98 },
-  animate: { opacity: 1, scale: 1 },
-  exit:    { opacity: 0, scale: 0.97 },
-};
-
 export default function App() {
-  const { isSetupComplete, resetSetup, loadAuthToken } = useAppStore();
+  const isSetupComplete = useAppStore((s) => s.isSetupComplete);
+  const theme = useAppStore((s) => s.theme);
+  const resetSetup = useAppStore((s) => s.resetSetup);
+  const loadAuthToken = useAppStore((s) => s.loadAuthToken);
+  const [confirmReset, setConfirmReset] = useState(false);
 
+  useEffect(() => { loadAuthToken(); }, [loadAuthToken]);
+
+  // Thema auf <html>: hell oder dunkel fest, „system“ folgt Windows über prefers-color-scheme.
   useEffect(() => {
-    loadAuthToken();
-  }, []);
+    const root = document.documentElement;
+    if (theme === "system") root.removeAttribute("data-theme");
+    else root.setAttribute("data-theme", theme);
+  }, [theme]);
+
   const { updateInfo, installing, progress, error, installUpdate, dismiss } = useUpdater();
 
-  const handleResetSettings = () => {
-    if (window.confirm("Alle Einstellungen zurücksetzen und die Einrichtung neu starten?")) {
-      resetSetup();
-    }
-  };
-
   return (
-    <div className="h-full w-full" style={{ background: "var(--bg-0)" }}>
-      <AnimatePresence mode="wait">
-        {isSetupComplete ? (
-          <motion.div
-            key="chat"
-            className="h-full w-full"
-            variants={pageVariants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            transition={{ duration: 0.3, ease: "easeOut" }}
-          >
-            <ChatPage onResetSettings={handleResetSettings} />
-          </motion.div>
-        ) : (
-          <motion.div
-            key="setup"
-            className="h-full w-full"
-            variants={pageVariants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            transition={{ duration: 0.3, ease: "easeOut" }}
-          >
-            <SetupPage />
-          </motion.div>
-        )}
-      </AnimatePresence>
+    <>
+      {isSetupComplete ? <ChatPage onResetSettings={() => setConfirmReset(true)} /> : <SetupPage />}
 
-      <UpdateDialog
-        info={updateInfo}
-        installing={installing}
-        progress={progress}
-        error={error}
-        onInstall={installUpdate}
-        onDismiss={dismiss}
+      <ConfirmDialog
+        open={confirmReset}
+        title="Abmelden und zurücksetzen?"
+        text="Anmeldung, Profil und der lokale Gesprächsverlauf werden von diesem Gerät entfernt. Die Einrichtung beginnt von vorn."
+        confirmLabel="Zurücksetzen"
+        danger
+        onConfirm={() => { setConfirmReset(false); resetSetup(); }}
+        onCancel={() => setConfirmReset(false)}
       />
-    </div>
+
+      <UpdateDialog info={updateInfo} installing={installing} progress={progress} error={error} onInstall={installUpdate} onDismiss={dismiss} />
+    </>
   );
 }

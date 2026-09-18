@@ -25,3 +25,8 @@ tauri-signing.key
 
 tauri-signing.key
 tauri-signing.key.pub
+
+# Kundenspezifische Build-Konfigurationen (Kundennamen, nur lokal)
+.env.*
+!.env.example
+src-tauri/tauri.*.conf.json

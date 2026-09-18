@@ -134,9 +134,10 @@ async fn authenticate_with_portal(
 }
 
 /// Fetch an image URL and return it as a base64 data-URL string.
-/// Used to load portal avatars without CSP img-src restrictions.
+/// Used to load portal avatars and protected originals (/original/<file>, Bearer JWT)
+/// without CSP img-src restrictions.
 #[command]
-async fn fetch_image_as_base64(url: String) -> Result<String, String> {
+async fn fetch_image_as_base64(url: String, auth_token: Option<String>) -> Result<String, String> {
     let parsed = url
         .parse::<reqwest::Url>()
         .map_err(|_| "Ungültige Bild-URL".to_string())?;
@@ -152,11 +153,19 @@ async fn fetch_image_as_base64(url: String) -> Result<String, String> {
         .build()
         .map_err(|e| format!("HTTP-Client-Fehler: {}", e))?;
 
-    let response = client
-        .get(&url)
+    let mut req = client.get(&url);
+    if let Some(token) = auth_token.filter(|t| !t.is_empty()) {
+        req = req.header("Authorization", format!("Bearer {}", token));
+    }
+
+    let response = req
         .send()
         .await
         .map_err(|e| format!("Verbindungsfehler: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Server-Fehler {}", response.status().as_u16()));
+    }
 
     let content_type = response
         .headers()

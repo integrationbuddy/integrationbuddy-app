@@ -1,221 +1,178 @@
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useMemo, useRef, useState } from "react";
+import Icon from "../common/Icon";
+import Avatar from "../common/Avatar";
 import { useAppStore } from "../../store/appStore";
 import { useWebhook } from "../../hooks/useWebhook";
+import type { ChatSession, ThemeMode } from "../../types";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function formatRelativeTime(isoString: string | null): string {
-  if (!isoString) return "";
-  const date  = new Date(isoString);
-  const now   = new Date();
-  const diff  = now.getTime() - date.getTime();
-  const mins  = Math.floor(diff / 60_000);
-  if (mins < 1)  return "Jetzt";
-  if (mins < 60) return `vor ${mins} Min.`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `vor ${hours} Std.`;
-  const days  = Math.floor(hours / 24);
-  if (days === 1) return "Gestern";
-  if (days < 7)   return `vor ${days} Tagen`;
-  return date.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
+const timeFmt = new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit" });
+const dateFmt = new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" });
+
+function startOfDay(d: Date): number {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+}
+
+function groupLabel(iso: string): string {
+  const d = new Date(iso);
+  const today = startOfDay(new Date());
+  const day = startOfDay(d);
+  const diff = Math.round((today - day) / 86_400_000);
+  if (diff <= 0) return "Heute";
+  if (diff === 1) return "Gestern";
+  if (diff < 7) return "Diese Woche";
+  if (diff < 31) return "Dieser Monat";
+  return "Älter";
+}
+
+function timeLabel(iso: string): string {
+  const d = new Date(iso);
+  const diff = Math.round((startOfDay(new Date()) - startOfDay(d)) / 86_400_000);
+  return diff <= 0 ? timeFmt.format(d) : dateFmt.format(d);
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
 interface SidebarProps {
-  isOpen: boolean;
+  onRelogin: () => void;
+  onResetSettings: () => void;
 }
 
-export default function Sidebar({ isOpen }: SidebarProps) {
-  const { sessions, sessionId, newSession, switchSession, deleteSession } = useAppStore();
+export default function Sidebar({ onRelogin, onResetSettings }: SidebarProps) {
+  const sessions = useAppStore((s) => s.sessions);
+  const sessionId = useAppStore((s) => s.sessionId);
+  const newSession = useAppStore((s) => s.newSession);
+  const switchSession = useAppStore((s) => s.switchSession);
+  const deleteSession = useAppStore((s) => s.deleteSession);
+  const user = useAppStore((s) => s.user);
+  const userGroups = useAppStore((s) => s.userGroups);
+  const theme = useAppStore((s) => s.theme);
+  const setTheme = useAppStore((s) => s.setTheme);
   const { deleteSessionOnServer } = useWebhook();
-  const [search,    setSearch]    = useState("");
-  const [hoveredId, setHoveredId] = useState<string | null>(null);
 
-  const sorted = [...sessions].sort((a, b) => {
-    const ta = a.lastMessageAt ?? a.createdAt;
-    const tb = b.lastMessageAt ?? b.createdAt;
-    return new Date(tb).getTime() - new Date(ta).getTime();
-  });
+  const [search, setSearch] = useState("");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
-  const filtered = search.trim()
-    ? sorted.filter((s) =>
-        (s.title ?? "Neue Unterhaltung").toLowerCase().includes(search.toLowerCase())
-      )
-    : sorted;
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMenuOpen(false); };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [menuOpen]);
+
+  const groups = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const sorted = [...sessions]
+      .filter((s) => s.messages.length > 0 || s.id === sessionId)
+      .filter((s) => !q || (s.title ?? "Neues Gespräch").toLowerCase().includes(q))
+      .sort((a, b) => new Date(b.lastMessageAt ?? b.createdAt).getTime() - new Date(a.lastMessageAt ?? a.createdAt).getTime());
+    const out: { label: string; items: ChatSession[] }[] = [];
+    for (const s of sorted) {
+      const label = groupLabel(s.lastMessageAt ?? s.createdAt);
+      const g = out[out.length - 1];
+      if (g && g.label === label) g.items.push(s); else out.push({ label, items: [s] });
+    }
+    return out;
+  }, [sessions, search, sessionId]);
+
+  const fullName = `${user.firstName} ${user.lastName}`.trim() || "Angemeldet";
+  const roleLabel = userGroups.length ? userGroups.join(", ") : "Ohne Gruppenzuordnung";
+
+  const themeItem = (mode: ThemeMode, label: string, icon: "sun" | "moon" | "monitor") => (
+    <button type="button" role="menuitemradio" aria-checked={theme === mode} className="popover__item" onClick={() => { setTheme(mode); setMenuOpen(false); }}>
+      <Icon name={icon} />
+      {label}
+    </button>
+  );
 
   return (
-    <AnimatePresence initial={false}>
-      {isOpen && (
-        <motion.div
-          key="sidebar"
-          initial={{ width: 0, opacity: 0 }}
-          animate={{ width: 260, opacity: 1 }}
-          exit={{ width: 0, opacity: 0 }}
-          transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
-          className="flex flex-col shrink-0 overflow-hidden h-full"
-          style={{
-            background:  "rgba(6, 8, 16, 0.98)",
-            borderRight: "1px solid var(--border)",
-          }}
-        >
-          {/* Fixed inner width so content doesn't reflow during animation */}
-          <div className="flex flex-col h-full" style={{ width: 260 }}>
+    <aside className="app-side" aria-label="Gespräche">
+      <div className="app-side__head">
+        <button type="button" className="btn btn--primary btn--sm btn--full" onClick={newSession}>
+          <Icon name="plus" />
+          Neues Gespräch
+        </button>
+        <div className="search">
+          <Icon name="search" />
+          <input className="input input--sm" type="search" placeholder="Gespräche durchsuchen" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Gespräche durchsuchen" />
+        </div>
+      </div>
 
-            {/* Top strip matching TitleBar height — stays draggable */}
-            <div
-              className="drag-region shrink-0 flex items-center px-4"
-              style={{
-                height:      40,
-                background:  "rgba(6, 8, 15, 0.9)",
-                borderBottom: "1px solid var(--border)",
-              }}
-            >
-              <span
-                className="font-display text-xs font-semibold no-drag"
-                style={{ color: "var(--text-3)", letterSpacing: "0.05em" }}
-              >
-                CHATS
-              </span>
-            </div>
-
-            {/* Content */}
-            <div className="flex flex-col flex-1 overflow-hidden p-3 gap-2">
-
-              {/* Search input */}
-              <div className="relative shrink-0">
-                <svg
-                  className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none"
-                  width="12" height="12" viewBox="0 0 24 24"
-                  fill="none" stroke="var(--text-3)"
-                  strokeWidth="2" strokeLinecap="round"
-                >
-                  <circle cx="11" cy="11" r="8" />
-                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                </svg>
-                <input
-                  type="text"
-                  placeholder="Suchen…"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="input-field w-full pl-8 pr-3 py-2 rounded-xl text-xs"
-                />
-              </div>
-
-              {/* New Chat button */}
-              <motion.button
-                onClick={newSession}
-                className="w-full flex items-center justify-center gap-2 rounded-xl py-2 text-xs font-medium shrink-0"
-                style={{
-                  background: "rgba(109,91,255,0.12)",
-                  border:     "1px solid rgba(109,91,255,0.25)",
-                  color:      "var(--accent-light)",
-                }}
-                whileHover={{
-                  background: "rgba(109,91,255,0.2)",
-                  border:     "1px solid rgba(109,91,255,0.4)",
-                }}
-                whileTap={{ scale: 0.97 }}
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
-                     stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                  <line x1="12" y1="5" x2="12" y2="19" />
-                  <line x1="5"  y1="12" x2="19" y2="12" />
-                </svg>
-                Neuer Chat
-              </motion.button>
-
-              {/* Session list */}
-              <div className="flex-1 overflow-y-auto flex flex-col gap-1 -mx-1 px-1">
-                <AnimatePresence initial={false}>
-                  {filtered.map((sess) => {
-                    const isActive = sess.id === sessionId;
-                    return (
-                      <motion.div
-                        key={sess.id}
-                        layout="position"
-                        initial={{ opacity: 0, x: -8 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -8 }}
-                        transition={{ duration: 0.15 }}
-                        className="relative rounded-xl px-3 py-2.5 cursor-pointer shrink-0"
-                        style={{
-                          background: isActive ? "rgba(109,91,255,0.15)" : "transparent",
-                          border:     isActive ? "1px solid rgba(109,91,255,0.25)" : "1px solid transparent",
-                        }}
-                        onClick={() => switchSession(sess.id)}
-                        onMouseEnter={() => setHoveredId(sess.id)}
-                        onMouseLeave={() => setHoveredId(null)}
-                        whileHover={{
-                          background: isActive
-                            ? "rgba(109,91,255,0.2)"
-                            : "rgba(255,255,255,0.04)",
-                        }}
-                      >
-                        {/* Title */}
-                        <div
-                          className="text-xs font-medium truncate pr-5"
-                          style={{ color: isActive ? "var(--text-1)" : "var(--text-2)" }}
-                        >
-                          {sess.title ?? "Neue Unterhaltung"}
-                        </div>
-
-                        {/* Timestamp */}
-                        <div
-                          className="mt-0.5"
-                          style={{ color: "var(--text-3)", fontSize: "10px" }}
-                        >
-                          {formatRelativeTime(sess.lastMessageAt ?? sess.createdAt)}
-                        </div>
-
-                        {/* Delete button (on hover) */}
-                        <AnimatePresence>
-                          {hoveredId === sess.id && (
-                            <motion.button
-                              initial={{ opacity: 0, scale: 0.7 }}
-                              animate={{ opacity: 1, scale: 1 }}
-                              exit={{ opacity: 0, scale: 0.7 }}
-                              transition={{ duration: 0.1 }}
-                              className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 rounded-md flex items-center justify-center"
-                              style={{
-                                background: "rgba(248,113,113,0.15)",
-                                color:      "#F87171",
-                              }}
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                await deleteSessionOnServer(sess.id);
-                                deleteSession(sess.id);
-                              }}
-                              whileHover={{ background: "rgba(248,113,113,0.3)" }}
-                            >
-                              <svg width="9" height="9" viewBox="0 0 24 24" fill="none"
-                                   stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                                <line x1="18" y1="6"  x2="6"  y2="18" />
-                                <line x1="6"  y1="6"  x2="18" y2="18" />
-                              </svg>
-                            </motion.button>
-                          )}
-                        </AnimatePresence>
-                      </motion.div>
-                    );
-                  })}
-                </AnimatePresence>
-
-                {filtered.length === 0 && (
-                  <p
-                    className="text-center mt-6"
-                    style={{ color: "var(--text-3)", fontSize: "11px" }}
-                  >
-                    {search ? "Keine Chats gefunden" : "Noch keine Chats"}
-                  </p>
-                )}
-              </div>
-
-            </div>
+      <nav className="app-side__list">
+        {groups.map((g) => (
+          <div key={g.label} style={{ display: "contents" }}>
+            <span className="nav-section-label">{g.label}</span>
+            {g.items.map((sess) => {
+              const active = sess.id === sessionId;
+              return (
+                <div key={sess.id} className={`convo${active ? " is-active" : ""}`} onClick={() => switchSession(sess.id)} role="button" tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); switchSession(sess.id); } }}
+                  aria-current={active ? "true" : undefined}>
+                  <b>{sess.title ?? "Neues Gespräch"}</b>
+                  <span>{sess.messages.length === 0 ? "Noch keine Nachricht" : timeLabel(sess.lastMessageAt ?? sess.createdAt)}</span>
+                  {sess.messages.length > 0 && (
+                    <button
+                      type="button"
+                      className="convo__del"
+                      aria-label="Gespräch löschen"
+                      title="Gespräch löschen"
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        await deleteSessionOnServer(sess.id);
+                        deleteSession(sess.id);
+                      }}
+                    >
+                      <Icon name="trash" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+        ))}
+        {groups.length === 0 && (
+          <p className="app-side__empty">{search ? "Kein Gespräch passt zur Suche." : "Noch keine Gespräche."}</p>
+        )}
+      </nav>
+
+      <div className="app-side__foot" ref={menuRef}>
+        {menuOpen && (
+          <div className="popover" role="menu">
+            <span className="popover__label">Darstellung</span>
+            {themeItem("light", "Hell", "sun")}
+            {themeItem("dark", "Dunkel", "moon")}
+            {themeItem("system", "Wie Windows", "monitor")}
+            <div className="popover__sep" />
+            <button type="button" role="menuitem" className="popover__item" onClick={() => { setMenuOpen(false); onRelogin(); }}>
+              <Icon name="refresh" />
+              Neu anmelden
+            </button>
+            <button type="button" role="menuitem" className="popover__item popover__item--danger" onClick={() => { setMenuOpen(false); onResetSettings(); }}>
+              <Icon name="logout" />
+              Abmelden und zurücksetzen
+            </button>
+          </div>
+        )}
+        <div className="sidebar__user" style={{ padding: 0 }}>
+          <Avatar src={user.avatar} name={fullName} size="md" />
+          <div className="min-w-0">
+            <div className="sidebar__user-name" title={fullName}>{fullName}</div>
+            <div className="sidebar__user-role" title={roleLabel}>{roleLabel}</div>
+          </div>
+          <button type="button" className="btn btn--quiet btn--icon btn--sm" aria-label="Einstellungen" title="Einstellungen" aria-expanded={menuOpen} style={{ marginLeft: "auto" }} onClick={() => setMenuOpen((o) => !o)}>
+            <Icon name="settings" />
+          </button>
+        </div>
+      </div>
+    </aside>
   );
 }

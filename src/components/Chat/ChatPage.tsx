@@ -1,31 +1,45 @@
-import { useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
-import ChatHeader from "./ChatHeader";
-import MessageBubble from "./MessageBubble";
-import MessageInput from "./MessageInput";
-import TypingIndicator from "./TypingIndicator";
+import TitleBar from "../common/TitleBar";
+import ConfirmDialog from "../common/ConfirmDialog";
+import Icon from "../common/Icon";
 import Sidebar from "./Sidebar";
-import SkillSelector from "./SkillSelector";
-import SolvedButton from "./SolvedButton";
+import ChatBar from "./ChatBar";
+import MessageItem from "./MessageItem";
+import TypingIndicator from "./TypingIndicator";
+import Composer from "./Composer";
+import Welcome from "./Welcome";
+import Lightbox, { type LightboxItem } from "./Lightbox";
+import LoginDialog from "../Auth/LoginDialog";
 import { useAppStore } from "../../store/appStore";
 import { useWebhook } from "../../hooks/useWebhook";
-import type { ChatSession, MessageRole } from "../../types";
+import { isTauri, invokeCommand } from "../../lib/tauri";
+import { loadProtectedImage } from "../../lib/attachments";
+import { toAuthError, describeError } from "../../lib/authError";
+import { formatExpiry } from "../../lib/portalAuth";
+import type { AuthReason, ChatAttachment, ChatSession, MessageRole } from "../../types";
 
 // ── Server session shapes ─────────────────────────────────────────────────────
 
-interface ServerMessage {
-  role: string;
-  content: string;
-  created_at: string;
-}
-
+interface ServerMessage { role: string; content: string; created_at: string; }
 interface ServerSession {
   session_id: string;
   title: string | null;
   created_at: string;
   last_message_at: string | null;
   messages: ServerMessage[] | string;
+}
+
+const EXPIRY_WARN_SECONDS = 2 * 86_400; // zwei Tage vor Ablauf hinweisen
+
+const dayFmt = new Intl.DateTimeFormat("de-DE", { weekday: "long", day: "2-digit", month: "long" });
+function dayLabel(d: Date): string {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const day = new Date(d); day.setHours(0, 0, 0, 0);
+  const diff = Math.round((today.getTime() - day.getTime()) / 86_400_000);
+  if (diff <= 0) return "Heute";
+  if (diff === 1) return "Gestern";
+  return dayFmt.format(d);
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -36,352 +50,264 @@ interface ChatPageProps {
 
 export default function ChatPage({ onResetSettings }: ChatPageProps) {
   const {
-    messages,
-    isTyping,
-    addMessage,
-    updateMessage,
-    setTyping,
-    clearMessages,
-    sessionId,
-    webhookUrl,
-    userId,
-    replaceWithServerSessions,
-    availableSkills,
-    activeSkillSession,
-    startSkillSession,
-    updateSkillSession,
-    endSkillSession,
+    messages, isTyping, addMessage, updateMessage, setTyping, clearMessages,
+    sessionId, sessions, webhookUrl, userId, authToken, tokenExpiresAt, authLoaded,
+    replaceWithServerSessions, availableSkills, activeSkillSession,
+    startSkillSession, updateSkillSession, endSkillSession,
   } = useAppStore();
-
   const { sendMessage } = useWebhook();
-  const { ai } = useAppStore();
-  const bottomRef  = useRef<HTMLDivElement>(null);
-  const scrollRef  = useRef<HTMLDivElement>(null);
-  const [error,       setError]       = useState("");
-  const [solved,      setSolved]      = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // ── Reset "solved" state when session changes ────────────────────────────
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const [solved, setSolved] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [draft, setDraft] = useState<string | null>(null);
+  const [lightbox, setLightbox] = useState<LightboxItem | null>(null);
+  const [confirmClear, setConfirmClear] = useState(false);
+  const [freshId, setFreshId] = useState<string | null>(null);
+
+  // Anmeldung
+  const [login, setLogin] = useState<{ open: boolean; reason: AuthReason | null; required: boolean }>({ open: false, reason: null, required: false });
+  const pendingText = useRef<string | null>(null);
+  const [expiryDismissed, setExpiryDismissed] = useState(false);
+
+  const now = Math.floor(Date.now() / 1000);
+  const tokenExpired = authLoaded && (!authToken || (tokenExpiresAt !== null && tokenExpiresAt <= now));
+  const tokenExpiring = !tokenExpired && tokenExpiresAt !== null && tokenExpiresAt - now < EXPIRY_WARN_SECONDS;
+  const authState: "ok" | "expiring" | "required" = tokenExpired ? "required" : tokenExpiring ? "expiring" : "ok";
+
+  const currentSession = useMemo(() => sessions.find((s) => s.id === sessionId), [sessions, sessionId]);
+
   useEffect(() => { setSolved(false); }, [sessionId]);
 
-  // ── Load sessions from server on mount ────────────────────────────────────
+  // Ohne gültige Anmeldung sofort nachfragen (Token fehlt oder Ablaufdatum überschritten)
+  useEffect(() => {
+    if (tokenExpired && !login.open) {
+      setLogin({ open: true, reason: !authToken ? "missing" : "expired", required: true });
+    }
+  }, [tokenExpired]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Verlauf vom Server laden
   useEffect(() => {
     if (!webhookUrl || !userId) return;
-
     const loadUrl = webhookUrl.replace(/\/ib-chat$/, "/ib-load-history");
-    if (loadUrl === webhookUrl) return; // URL pattern didn't match
+    if (loadUrl === webhookUrl) return;
 
-    const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
-
-    const load = async () => {
+    (async () => {
       try {
         let raw: string;
-        if (isTauri) {
-          const { invoke } = await import("@tauri-apps/api/core");
-          raw = await invoke<string>("post_json", { url: loadUrl, body: { userId } });
+        if (isTauri()) {
+          raw = await invokeCommand<string>("post_json", { url: loadUrl, body: { userId } });
         } else {
-          const res = await fetch(loadUrl, {
-            method:  "POST",
-            headers: { "Content-Type": "application/json" },
-            body:    JSON.stringify({ userId }),
-          });
+          const res = await fetch(loadUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId }) });
           raw = await res.text();
         }
-
         const parsed: unknown = JSON.parse(raw);
-        const data: ServerSession[] = Array.isArray(parsed)
-          ? (parsed as ServerSession[])
-          : ((parsed as { sessions?: ServerSession[] }).sessions ?? []);
-
-        const sessions: ChatSession[] = data.map((s) => {
-          const rawMsgs: ServerMessage[] =
-            typeof s.messages === "string"
-              ? (JSON.parse(s.messages) as ServerMessage[])
-              : (s.messages as ServerMessage[]) ?? [];
-
+        const data: ServerSession[] = Array.isArray(parsed) ? (parsed as ServerSession[]) : ((parsed as { sessions?: ServerSession[] }).sessions ?? []);
+        const loaded: ChatSession[] = data.map((s) => {
+          const rawMsgs: ServerMessage[] = typeof s.messages === "string" ? (JSON.parse(s.messages) as ServerMessage[]) : (s.messages ?? []);
           return {
-            id:            s.session_id,
-            title:         s.title ?? null,
-            createdAt:     s.created_at,
+            id: s.session_id,
+            title: s.title ?? null,
+            createdAt: s.created_at,
             lastMessageAt: s.last_message_at ?? null,
             messages: rawMsgs.map((m) => ({
-              id:        uuidv4(),
-              role:      m.role as MessageRole,
-              content:   m.content,
+              id: uuidv4(),
+              role: m.role as MessageRole,
+              content: m.content,
               timestamp: new Date(m.created_at),
-              status:    "sent" as const,
+              status: "sent" as const,
             })),
           };
         });
-
-        replaceWithServerSessions(sessions);
+        replaceWithServerSessions(loaded);
       } catch {
-        // Silently fall back to local sessions
+        // Lokaler Verlauf bleibt
       }
-    };
-
-    load();
+    })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-scroll to bottom
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, isTyping]);
 
-  const showWelcome = messages.length === 0;
+  // ── Senden ────────────────────────────────────────────────────────────────
 
-  // ── Send ──────────────────────────────────────────────────────────────────
-
-  const handleSend = async (text: string) => {
-    setError("");
+  const handleSend = useCallback(async (text: string) => {
+    if (tokenExpired) {
+      pendingText.current = text;
+      setLogin({ open: true, reason: !authToken ? "missing" : "expired", required: true });
+      return;
+    }
     const originSessionId = sessionId;
     const userMsgId = addMessage({ role: "user", content: text, status: "sending" }, originSessionId);
-    updateMessage(userMsgId, { status: "sent" });
     setTyping(true);
 
     try {
       const result = await sendMessage(text);
+      updateMessage(userMsgId, { status: "sent" });
       setTyping(false);
 
-      // ── Skill-State-Machine ──────────────────────────────────────────────
-      if (result.skillAction === "collecting") {
-        updateSkillSession({
-          status:        "collecting",
-          collectedData: result.collectedData ?? activeSkillSession?.collectedData ?? {},
-        });
-      } else if (result.skillAction === "confirming") {
-        updateSkillSession({
-          status:        "confirming",
-          collectedData: result.collectedData ?? activeSkillSession?.collectedData ?? {},
-        });
+      if (result.skillAction === "collecting" || result.skillAction === "confirming") {
+        updateSkillSession({ status: result.skillAction, collectedData: result.collectedData ?? activeSkillSession?.collectedData ?? {} });
       } else if (result.skillAction === "complete") {
         if (result.skillOutput) {
-          updateSkillSession({
-            status:         "complete",
-            outputFileUrl:  result.skillOutput.fileUrl,
-            outputFileName: result.skillOutput.fileName,
-          });
+          updateSkillSession({ status: "complete", outputFileUrl: result.skillOutput.fileUrl, outputFileName: result.skillOutput.fileName });
         }
-        // Skill-Session nach kurzem Delay automatisch beenden
         setTimeout(() => endSkillSession(), 800);
       } else if (result.skillAction === "cancelled") {
         endSkillSession();
       }
-      // Bei "undefined" skillAction (normaler RAG-Chat) → nichts tun
 
-      // Nachricht zur Chat-History hinzufügen
-      addMessage(
-        {
-          role:        "assistant",
-          content:     result.text,
-          status:      "sent",
-          skillOutput: result.skillOutput,
-          buttons:     result.buttons,
-          selectOptions: result.selectOptions,
-          dateChannelOptions: result.dateChannelOptions,
-        },
-        originSessionId
-      );
+      const id = addMessage({
+        role: "assistant",
+        content: result.text,
+        status: "sent",
+        sources: result.sources,
+        attachments: result.attachments,
+        skillOutput: result.skillOutput,
+        buttons: result.buttons,
+        selectOptions: result.selectOptions,
+        dateChannelOptions: result.dateChannelOptions,
+      }, originSessionId);
+      setFreshId(id);
     } catch (err) {
       setTyping(false);
-      const errMsg = err instanceof Error ? err.message : String(err);
-      addMessage({ role: "assistant", content: `Fehler: ${errMsg}`, status: "error" }, originSessionId);
-      setError(errMsg);
+      const auth = toAuthError(err);
+      if (auth) {
+        // Nachricht bleibt als „gesendet“ stehen und wird nach der Anmeldung erneut geschickt.
+        updateMessage(userMsgId, { status: "sent" });
+        pendingText.current = text;
+        setLogin({ open: true, reason: auth.reason, required: auth.reason !== "expiring" });
+        return;
+      }
+      updateMessage(userMsgId, { status: "sent" });
+      addMessage({ role: "assistant", content: describeError(err), status: "error" }, originSessionId);
+    }
+  }, [tokenExpired, authToken, sessionId, addMessage, updateMessage, setTyping, sendMessage, updateSkillSession, endSkillSession, activeSkillSession]);
+
+  const handleLoginSuccess = () => {
+    setLogin({ open: false, reason: null, required: false });
+    setExpiryDismissed(false);
+    const text = pendingText.current;
+    pendingText.current = null;
+    if (text) {
+      // Die Nutzerfrage steht schon im Verlauf, deshalb nur die Antwort nachholen.
+      setTyping(true);
+      sendMessage(text)
+        .then((result) => {
+          setTyping(false);
+          const id = addMessage({ role: "assistant", content: result.text, status: "sent", sources: result.sources, attachments: result.attachments, skillOutput: result.skillOutput, buttons: result.buttons, selectOptions: result.selectOptions, dateChannelOptions: result.dateChannelOptions });
+          setFreshId(id);
+        })
+        .catch((err) => {
+          setTyping(false);
+          addMessage({ role: "assistant", content: describeError(err), status: "error" });
+        });
+    }
+  };
+
+  const openAttachment = (attachment: ChatAttachment, src: string | null) => {
+    setLightbox({ attachment, src });
+    if (!src) {
+      loadProtectedImage(attachment.url, authToken)
+        .then((full) => setLightbox((cur) => (cur && cur.attachment.url === attachment.url ? { ...cur, src: full } : cur)))
+        .catch(() => { /* Vorschau bleibt leer, Dialog zeigt den Ladekreis */ });
     }
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
 
+  const showWelcome = messages.length === 0 && !isTyping;
+
   return (
-    <div className="flex h-full w-full" style={{ background: "var(--bg-0)" }}>
-
-      {/* ── Sidebar ─────────────────────────────────────────────────────── */}
-      <Sidebar isOpen={sidebarOpen} />
-
-      {/* ── Main content ────────────────────────────────────────────────── */}
-      <div className="flex flex-col flex-1 min-w-0 relative">
-
-        {/* Header */}
-        <ChatHeader
-          isTyping={isTyping}
-          messageCount={messages.length}
-          onClear={clearMessages}
-          onSettings={onResetSettings}
-          sidebarOpen={sidebarOpen}
-          onToggleSidebar={() => setSidebarOpen((o) => !o)}
+    <div className="win">
+      <TitleBar />
+      <div className={`win__body${sidebarOpen ? "" : " is-side-hidden"}`}>
+        <Sidebar
+          onRelogin={() => setLogin({ open: true, reason: tokenExpiring ? "expiring" : "invalid", required: false })}
+          onResetSettings={onResetSettings}
         />
 
-        {/* Message area */}
-        <div
-          ref={scrollRef}
-          className="flex-1 overflow-y-auto px-4 py-6 flex flex-col gap-4 relative"
-          style={{ scrollBehavior: "smooth" }}
-        >
-          {/* Subtle background grid pattern */}
-          <div
-            className="absolute inset-0 pointer-events-none opacity-[0.025]"
-            style={{
-              backgroundImage:
-                "linear-gradient(rgba(109,91,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(109,91,255,0.5) 1px, transparent 1px)",
-              backgroundSize: "40px 40px",
-            }}
+        <section className="chat chat--fill" aria-label="Gespräch">
+          <ChatBar
+            title={currentSession?.title ?? null}
+            messages={messages}
+            sidebarOpen={sidebarOpen}
+            onToggleSidebar={() => setSidebarOpen((o) => !o)}
+            authState={authState}
+            onLogin={() => setLogin({ open: true, reason: tokenExpired ? (!authToken ? "missing" : "expired") : "expiring", required: tokenExpired })}
+            solved={solved}
+            onSolved={() => setSolved(true)}
+            onClear={() => setConfirmClear(true)}
           />
 
-          {/* Welcome state */}
-          <AnimatePresence>
-            {showWelcome && (
-              <motion.div
-                className="flex flex-col items-center justify-center flex-1 text-center gap-4 py-8"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.4, ease: "easeOut" }}
-              >
-                {/* Animated logo */}
-                <motion.div
-                  className="relative"
-                  animate={{ y: [0, -6, 0] }}
-                  transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                >
-                  <div
-                    className="w-20 h-20 rounded-2xl flex items-center justify-center"
-                    style={{
-                      background: "linear-gradient(135deg, rgba(109,91,255,0.15) 0%, rgba(45,212,191,0.1) 100%)",
-                      border:     "1px solid rgba(109,91,255,0.25)",
-                      boxShadow:  "0 0 40px rgba(109,91,255,0.15)",
-                    }}
-                  >
-                    <svg width="38" height="38" viewBox="0 0 48 48" fill="none">
-                      <path d="M24 4L42 14V34L24 44L6 34V14L24 4Z" stroke="url(#wGrad)" strokeWidth="1.8" fill="none" />
-                      <circle cx="24" cy="24" r="5" fill="url(#wGrad)" opacity="0.8" />
-                      <path d="M24 14V18M24 30V34M14 24H18M30 24H34" stroke="url(#wGrad)" strokeWidth="1.4" strokeLinecap="round" />
-                      <defs>
-                        <linearGradient id="wGrad" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse">
-                          <stop stopColor="#8B7DFF" />
-                          <stop offset="1" stopColor="#2DD4BF" />
-                        </linearGradient>
-                      </defs>
-                    </svg>
-                  </div>
-                </motion.div>
-
-                <div>
-                  <h2 className="font-display text-xl font-bold mb-2" style={{ color: "var(--text-1)" }}>
-                    Bereit zum Chat mit{" "}
-                    <span className="gradient-text">{ai.name}</span>
-                  </h2>
-                  <p className="text-sm max-w-xs" style={{ color: "var(--text-2)" }}>
-                    Stellen Sie eine Frage oder beginnen Sie ein Gespräch.
-                    Alle Anfragen werden sicher über Ihr n8n-System geleitet.
-                  </p>
+          <div className="chat__body">
+            {showWelcome && <Welcome onSend={handleSend} onDraft={setDraft} />}
+            {messages.map((msg, idx) => {
+              const ts = msg.timestamp instanceof Date ? msg.timestamp : new Date(msg.timestamp);
+              const prev = idx > 0 ? messages[idx - 1] : null;
+              const prevTs = prev ? (prev.timestamp instanceof Date ? prev.timestamp : new Date(prev.timestamp)) : null;
+              const newDay = !prevTs || prevTs.toDateString() !== ts.toDateString();
+              return (
+                <div key={msg.id} style={{ display: "contents" }}>
+                  {newDay && <p className="chat__day">{dayLabel(ts)}</p>}
+                  <MessageItem
+                    message={msg}
+                    isLast={idx === messages.length - 1}
+                    fresh={msg.id === freshId}
+                    onReply={isTyping ? undefined : handleSend}
+                    onOpenAttachment={openAttachment}
+                  />
                 </div>
-
-                {/* Suggestion chips */}
-                <div className="flex flex-wrap gap-2 justify-center mt-2">
-                  {[
-                    "Was kannst du für mich tun?",
-                    "Erkläre unsere Datenstrategie",
-                    "Hilf mir bei einem Dokument",
-                  ].map((s) => (
-                    <motion.button
-                      key={s}
-                      className="px-3 py-1.5 rounded-full text-xs cursor-pointer"
-                      style={{
-                        background: "rgba(109,91,255,0.08)",
-                        border:     "1px solid rgba(109,91,255,0.2)",
-                        color:      "var(--text-2)",
-                      }}
-                      whileHover={{ background: "rgba(109,91,255,0.15)", color: "var(--text-1)", scale: 1.03 }}
-                      whileTap={{ scale: 0.97 }}
-                      onClick={() => handleSend(s)}
-                    >
-                      {s}
-                    </motion.button>
-                  ))}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Messages */}
-          <AnimatePresence initial={false}>
-            {messages.map((msg, idx) => (
-              <MessageBubble
-                key={msg.id}
-                message={msg}
-                isLast={idx === messages.length - 1}
-                onButtonClick={isTyping ? undefined : handleSend}
-              />
-            ))}
-          </AnimatePresence>
-
-          {/* Typing indicator */}
-          <AnimatePresence>
-            {isTyping && <TypingIndicator key="typing" />}
-          </AnimatePresence>
-
-          {/* Error toast */}
-          <AnimatePresence>
-            {error && (
-              <motion.div
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs self-center"
-                style={{
-                  background: "rgba(248,113,113,0.1)",
-                  border:     "1px solid rgba(248,113,113,0.25)",
-                  color:      "#F87171",
-                }}
-                initial={{ opacity: 0, y: 8, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0,  scale: 1 }}
-                exit={{   opacity: 0, y: -4 }}
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <circle cx="12" cy="12" r="10" />
-                  <line x1="12" y1="8"  x2="12"   y2="12" />
-                  <line x1="12" y1="16" x2="12.01" y2="16" />
-                </svg>
-                Verbindungsfehler · Prüfen Sie Ihre n8n-URL
-                <button onClick={() => setError("")} className="ml-1 opacity-70 hover:opacity-100">✕</button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Scroll anchor */}
-          <div ref={bottomRef} />
-        </div>
-
-        {/* Gradient fade at top of messages */}
-        <div
-          className="absolute left-0 right-0 pointer-events-none"
-          style={{
-            top:        "96px",
-            height:     "40px",
-            background: "linear-gradient(var(--bg-0), transparent)",
-            zIndex:     5,
-          }}
-        />
-
-        {/* ── Skill-Selector + Problem-gelöst-Button ──────────────── */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <SkillSelector
-              skills={availableSkills}
-              activeSession={activeSkillSession}
-              onStartSkill={startSkillSession}
-              onEndSkill={endSkillSession}
-            />
+              );
+            })}
+            {isTyping && <TypingIndicator />}
+            <div ref={bottomRef} style={{ height: 1 }} />
           </div>
-          <div style={{ padding: "0 16px 8px", flexShrink: 0 }}>
-            <SolvedButton
-              messages={messages}
-              solved={solved}
-              onSolved={() => setSolved(true)}
-            />
-          </div>
-        </div>
 
-        {/* Input */}
-        <MessageInput onSend={handleSend} disabled={isTyping} />
+          {tokenExpiring && !expiryDismissed && tokenExpiresAt && (
+            <div className="chat__notice">
+              <div className="notice notice--warn notice--compact" role="status">
+                <Icon name="clock" />
+                <div>Ihre Anmeldung läuft am {formatExpiry(tokenExpiresAt)} ab.</div>
+                <button type="button" className="btn btn--ghost btn--sm" onClick={() => setLogin({ open: true, reason: "expiring", required: false })}>Jetzt verlängern</button>
+                <button type="button" className="btn btn--quiet btn--sm btn--icon" aria-label="Hinweis ausblenden" onClick={() => setExpiryDismissed(true)}><Icon name="close" /></button>
+              </div>
+            </div>
+          )}
+
+          <Composer
+            onSend={handleSend}
+            disabled={isTyping}
+            draft={draft}
+            onDraftConsumed={() => setDraft(null)}
+            skills={availableSkills}
+            activeSession={activeSkillSession}
+            onStartSkill={startSkillSession}
+            onEndSkill={endSkillSession}
+          />
+        </section>
       </div>
+
+      <Lightbox item={lightbox} onClose={() => setLightbox(null)} />
+
+      <LoginDialog
+        open={login.open}
+        reason={login.reason}
+        required={login.required}
+        onClose={() => { setLogin({ open: false, reason: null, required: false }); pendingText.current = null; }}
+        onSuccess={handleLoginSuccess}
+      />
+
+      <ConfirmDialog
+        open={confirmClear}
+        title="Gespräch leeren?"
+        text="Alle Nachrichten dieses Gesprächs werden aus der App entfernt."
+        confirmLabel="Leeren"
+        danger
+        onConfirm={() => { clearMessages(); setConfirmClear(false); }}
+        onCancel={() => setConfirmClear(false)}
+      />
     </div>
   );
 }
