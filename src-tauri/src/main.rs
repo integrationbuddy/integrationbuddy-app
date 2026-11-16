@@ -315,8 +315,9 @@ async fn download_file(url: String, file_name: String) -> Result<String, String>
 /// Delete a session on the n8n server by sending { session_id } to the delete endpoint.
 #[command]
 async fn delete_session_on_server(
-    url:     String,
-    payload: DeletePayload,
+    url:        String,
+    payload:    DeletePayload,
+    auth_token: Option<String>,
 ) -> Result<(), String> {
     let parsed = url
         .parse::<reqwest::Url>()
@@ -333,13 +334,24 @@ async fn delete_session_on_server(
         .build()
         .map_err(|e| format!("HTTP-Client-Fehler: {}", e))?;
 
-    client
+    // Seit 16.11.2026 verlangt der Server das Login-Token und löscht nur eigene Sitzungen
+    let mut req = client
         .post(url)
         .header("Content-Type", "application/json")
-        .json(&payload)
+        .json(&payload);
+
+    if let Some(token) = auth_token {
+        req = req.header("Authorization", format!("Bearer {}", token));
+    }
+
+    let response = req
         .send()
         .await
         .map_err(|e| format!("Verbindungsfehler: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Löschen auf dem Server fehlgeschlagen: HTTP {}", response.status().as_u16()));
+    }
 
     Ok(())
 }

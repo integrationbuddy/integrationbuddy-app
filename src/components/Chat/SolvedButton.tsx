@@ -40,7 +40,7 @@ export default function SolvedButton({ messages, solved, onSolved }: SolvedButto
       if (isTauri()) {
         await invokeCommand("send_message_to_webhook", { url: SOLVED_WEBHOOK_URL, payload, authToken });
       } else {
-        await fetch(SOLVED_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        await fetch(SOLVED_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json", ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}) }, body: JSON.stringify(payload) });
       }
     } catch {
       // Bestätigung trotzdem zeigen; der Workflow arbeitet asynchron
