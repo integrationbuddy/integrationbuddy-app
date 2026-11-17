@@ -102,7 +102,7 @@ export function useWebhook() {
   } = useAppStore();
 
   // Delete-Endpunkt aus der Chat-URL ableiten
-  const deleteUrl = webhookUrl.replace(/\/ib-chat$/, "/delete-session");
+  const deleteUrl = /\/ib-chat(-v2)?$/.test(webhookUrl) ? webhookUrl.replace(/\/ib-chat(-v2)?$/, "/delete-session") : "";
 
   const sendMessage = async (content: string): Promise<SendMessageResult> => {
     if (!webhookUrl) {
@@ -170,11 +170,11 @@ export function useWebhook() {
     const payload = { session_id: id };
     try {
       if (isTauri()) {
-        await invokeCommand("delete_session_on_server", { url: deleteUrl, payload });
+        await invokeCommand("delete_session_on_server", { url: deleteUrl, payload, authToken });
       } else {
         await fetch(deleteUrl, {
           method:  "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}) },
           body:    JSON.stringify(payload),
         });
       }

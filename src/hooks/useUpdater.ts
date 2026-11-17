@@ -16,7 +16,8 @@ export function useUpdater() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isTauri()) return;
+    // Kunden-Builds (VITE_UPDATER=off) dürfen nicht durch die allgemeine Version von GitHub ersetzt werden
+    if (!isTauri() || import.meta.env.VITE_UPDATER === "off") return;
 
     const checkForUpdates = async () => {
       try {

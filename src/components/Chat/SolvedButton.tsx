@@ -4,7 +4,9 @@ import { useAppStore } from "../../store/appStore";
 import { isTauri, invokeCommand } from "../../lib/tauri";
 import type { Message } from "../../types";
 
-const SOLVED_WEBHOOK_URL = "https://n8n.srv1314651.hstgr.cloud/webhook/chat-solved";
+// Kunden-spezifisch per Build-Env (VITE_SOLVED_WEBHOOK_URL), damit Gespräche in der n8n-Instanz des Kunden bleiben.
+const SOLVED_WEBHOOK_URL =
+  import.meta.env.VITE_SOLVED_WEBHOOK_URL ?? "https://n8n.srv1314651.hstgr.cloud/webhook/chat-solved";
 
 interface SolvedButtonProps {
   messages: Message[];
@@ -40,7 +42,7 @@ export default function SolvedButton({ messages, solved, onSolved }: SolvedButto
       if (isTauri()) {
         await invokeCommand("send_message_to_webhook", { url: SOLVED_WEBHOOK_URL, payload, authToken });
       } else {
-        await fetch(SOLVED_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        await fetch(SOLVED_WEBHOOK_URL, { method: "POST", headers: { "Content-Type": "application/json", ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}) }, body: JSON.stringify(payload) });
       }
     } catch {
       // Bestätigung trotzdem zeigen; der Workflow arbeitet asynchron

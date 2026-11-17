@@ -147,6 +147,48 @@ body { user-select: none; }
 .filecard__meta { font-size: var(--text-xs); color: var(--color-ink-soft); }
 .filecard__err { font-size: var(--text-xs); color: var(--color-danger); margin-top: 2px; }
 
+/* Lösungsanleitung: abhakbare Schritte, Stand fließt ins Ticket */
+.guide { display: grid; gap: var(--sp-3); }
+.guide__intro > :first-child, .guide__outro > :first-child { margin-top: 0; }
+.guide__card { display: grid; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4) var(--sp-4); border: var(--line) solid var(--color-border); border-radius: var(--radius-md); background: var(--color-canvas); }
+.guide__head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); }
+.guide__label { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-xs); font-weight: var(--weight-semibold); text-transform: uppercase; letter-spacing: var(--tracking-caps-sm); color: var(--color-ink-soft); }
+.guide__label svg { width: 14px; height: 14px; }
+.guide__count { font-size: var(--text-sm); color: var(--color-ink-soft); }
+.guide__steps { list-style: none; margin: 0 !important; padding: 0 !important; display: grid; gap: 2px; }
+.guide__step { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: var(--sp-3); align-items: start; padding: 10px var(--sp-2); margin: 0 !important; border-radius: var(--radius-sm); transition: background var(--dur-fast) var(--ease); }
+.guide__step:hover { background: var(--color-surface); }
+.guide__step.is-current { background: var(--color-accent-soft); }
+.guide__step.is-failed { background: var(--color-warning-soft); }
+.guide__check { display: flex; align-items: center; gap: 8px; cursor: pointer; padding-top: 1px; }
+.guide__check input { width: 18px; height: 18px; margin: 0; accent-color: var(--color-success); cursor: pointer; }
+.guide__num { min-width: 22px; height: 22px; border-radius: var(--radius-pill); display: grid; place-items: center; font-size: var(--text-xs); font-weight: var(--weight-semibold); background: var(--color-surface-2); color: var(--color-ink-soft); }
+.guide__step.is-current .guide__num { background: var(--color-accent); color: var(--color-on-accent); }
+.guide__step.is-done .guide__num { background: var(--color-success-soft); color: var(--color-success); }
+.guide__step.is-failed .guide__num { background: var(--color-warning); color: var(--color-on-accent); }
+.guide__content { min-width: 0; display: grid; gap: 4px; }
+.guide__text p, .guide__detail p { margin: 0; }
+.guide__step.is-done .guide__text { color: var(--color-ink-soft); text-decoration: line-through; text-decoration-color: var(--color-border-strong); }
+.guide__detail { font-size: var(--text-sm); color: var(--color-ink-soft); }
+.guide__detail ul, .guide__detail ol { margin: 2px 0 !important; }
+.guide__stuck { display: grid; gap: var(--sp-2); margin-top: 4px; justify-items: start; }
+.guide__note { width: 100%; min-height: 64px !important; font-size: var(--text-sm); user-select: text; }
+.guide__flag { opacity: 0; white-space: nowrap; }
+.guide__step:hover .guide__flag, .guide__step.is-current .guide__flag, .guide__flag.is-on, .guide__flag:focus-visible { opacity: 1; }
+.guide__flag.is-on { color: var(--color-warning); }
+.guide__foot { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); flex-wrap: wrap; padding-top: var(--sp-2); border-top: var(--line) solid var(--color-border); }
+.guide__status { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-sm); color: var(--color-ink-soft); }
+.guide__status svg { width: 15px; height: 15px; flex: 0 0 auto; }
+.guide__status--ok { color: var(--color-success); }
+.guide__status--warn { color: var(--color-warning); }
+.dialog__box--ticket { max-width: 640px; }
+.ticket-preview { display: block; width: 100%; max-height: 46vh; overflow-y: auto; padding: var(--sp-3) var(--sp-4); border: var(--line) solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-surface); font-family: var(--font-mono); font-size: var(--text-xs); line-height: 1.6; white-space: pre-wrap; user-select: text; color: var(--color-ink); }
+.ticket-edit { min-height: 46vh; resize: vertical; outline: none; font-family: inherit; font-size: var(--text-sm); }
+.ticket-edit:focus-visible { border-color: var(--color-accent); box-shadow: 0 0 0 4px var(--color-focus-ring); }
+.ticket-preview--loading { display: flex; align-items: center; gap: var(--sp-3); min-height: 120px; font-family: var(--font-body, inherit); font-size: var(--text-sm); color: var(--color-ink-soft); }
+.ticket-note { display: flex; align-items: center; gap: 6px; margin: 0 0 var(--sp-2); font-size: var(--text-sm); color: var(--color-warning); }
+.ticket-note svg { width: 15px; height: 15px; flex: 0 0 auto; }
+
 /* Leerer Zustand */
 .welcome { flex: 1 1 auto; display: grid; place-content: center; justify-items: center; text-align: center; gap: var(--sp-3); padding: var(--sp-6) 0; max-width: 520px; }
 .welcome__logo { width: 56px; height: 56px; border-radius: var(--radius-lg); box-shadow: var(--shadow-2); margin-bottom: var(--sp-2); }

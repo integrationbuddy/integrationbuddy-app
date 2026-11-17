@@ -2,7 +2,9 @@ import { useMemo, useState } from "react";
 import Icon from "../common/Icon";
 import AttachmentPreview from "./AttachmentPreview";
 import SkillOutputCard from "./SkillOutputCard";
+import SolutionGuide from "./SolutionGuide";
 import { renderMarkdown } from "../../lib/markdown";
+import { parseGuide } from "../../lib/guide";
 import type { ChatAttachment, ChatSource, Message, SelectOption } from "../../types";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -113,17 +115,20 @@ interface MessageItemProps {
   message: Message;
   isLast: boolean;
   fresh: boolean;
+  question?: string | null; // Nutzerfrage zu dieser Antwort, für den Ticket-Text
   onReply?: (value: string) => void;
   onOpenAttachment: (attachment: ChatAttachment, src: string | null) => void;
 }
 
-export default function MessageItem({ message, isLast, fresh, onReply, onOpenAttachment }: MessageItemProps) {
+export default function MessageItem({ message, isLast, fresh, question = null, onReply, onOpenAttachment }: MessageItemProps) {
   const [copied, setCopied] = useState(false);
   const [replied, setReplied] = useState(false);
   const isUser = message.role === "user";
   const isError = message.status === "error";
   const hasSources = Boolean(message.sources?.length);
-  const html = useMemo(() => (isUser || isError ? "" : renderMarkdown(stripTrailingSourceLine(message.content, hasSources))), [message.content, isUser, isError, hasSources]);
+  const body = useMemo(() => (isUser || isError ? "" : stripTrailingSourceLine(message.content, hasSources)), [message.content, isUser, isError, hasSources]);
+  const guide = useMemo(() => (body ? parseGuide(body) : null), [body]);
+  const html = useMemo(() => (body && !guide ? renderMarkdown(body) : ""), [body, guide]);
   const groups = useMemo(() => groupSources(message.sources ?? []), [message.sources]);
   const ts = message.timestamp instanceof Date ? message.timestamp : new Date(message.timestamp);
 
@@ -158,6 +163,15 @@ export default function MessageItem({ message, isLast, fresh, onReply, onOpenAtt
         <div className="chat__a chat__a--error">
           <p>{message.content}</p>
         </div>
+      ) : guide ? (
+        <SolutionGuide
+          messageId={message.id}
+          guide={guide}
+          state={message.guide}
+          question={question}
+          sources={message.sources ?? []}
+          answeredAt={ts}
+        />
       ) : (
         <div className="chat__a chat__a--wide" dangerouslySetInnerHTML={{ __html: html }} />
       )}

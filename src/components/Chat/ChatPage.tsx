@@ -89,7 +89,9 @@ export default function ChatPage({ onResetSettings }: ChatPageProps) {
   // Verlauf vom Server laden
   useEffect(() => {
     if (!webhookUrl || !userId) return;
-    const loadUrl = webhookUrl.replace(/\/ib-chat$/, "/ib-load-history");
+    // Kunden-Builds ohne abgesicherten Verlauf-Workflow schalten das Laden ab (VITE_SERVER_HISTORY=off)
+    if (import.meta.env.VITE_SERVER_HISTORY === "off") return;
+    const loadUrl = webhookUrl.replace(/\/ib-chat(-v2)?$/, "/ib-load-history");
     if (loadUrl === webhookUrl) return;
 
     (async () => {
@@ -255,6 +257,7 @@ export default function ChatPage({ onResetSettings }: ChatPageProps) {
                     message={msg}
                     isLast={idx === messages.length - 1}
                     fresh={msg.id === freshId}
+                    question={msg.role === "assistant" && prev?.role === "user" ? prev.content : null}
                     onReply={isTyping ? undefined : handleSend}
                     onOpenAttachment={openAttachment}
                   />

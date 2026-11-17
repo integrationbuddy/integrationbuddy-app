@@ -94,6 +94,14 @@ export interface ChatAttachment {
   thumb_url?: string | null;
 }
 
+/** Stand einer abhakbaren Lösungsanleitung, je Schritt in der Reihenfolge der Antwort. */
+export type GuideStepStatus = "open" | "done" | "failed";
+
+export interface GuideState {
+  status: GuideStepStatus[];
+  note: string; // Beobachtung des Nutzers am Schritt, an dem es hängt
+}
+
 export interface Message {
   id: string;
   role: MessageRole;
@@ -106,6 +114,7 @@ export interface Message {
   dateChannelOptions?: SelectOption[]; // Kanal-Auswahl + Datumspicker (z.B. Anfragedatum)
   sources?: ChatSource[];
   attachments?: ChatAttachment[];
+  guide?: GuideState; // nur bei Antworten, die als Lösungsanleitung erkannt wurden
 }
 
 export interface ChatSession {

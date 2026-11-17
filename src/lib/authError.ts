@@ -18,6 +18,11 @@ export class AuthRequiredError extends Error {
 export function toAuthError(err: unknown): AuthRequiredError | null {
   if (err instanceof AuthRequiredError) return err;
   const text = err instanceof Error ? err.message : String(err ?? "");
+  // Prüft der n8n-Webhook das Token selbst (Authentication: JWT Auth), lehnt er mit 403 ab
+  // ("Authorization data is wrong!"). Das ist ebenfalls ein Fall für eine neue Anmeldung.
+  if (/Server-Fehler 403\b|HTTP 403\b/.test(text) && /authori[sz]ation|jwt|token/i.test(text)) {
+    return new AuthRequiredError("invalid");
+  }
   if (!/Server-Fehler 401\b|HTTP 401\b/.test(text)) return null;
 
   let reason: AuthReason = "invalid";
